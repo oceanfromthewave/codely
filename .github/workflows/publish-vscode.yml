@@ -46,7 +46,8 @@ jobs:
         working-directory: packages/vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --no-dependencies --yarn false
+        # Do not pass `--yarn false`: the trailing `false` is parsed as the [version] positional and breaks with "Invalid version false".
+        run: npx vsce publish --no-dependencies --no-yarn
 
       - name: Commit version bump
         run: |
