@@ -33,12 +33,7 @@ export interface AnalyzeFullResult {
   metrics: FileMetrics;
 }
 
-export type SupportedLanguage =
-  | 'auto'
-  | 'javascript'
-  | 'typescript'
-  | 'jsx'
-  | 'tsx';
+export type SupportedLanguage = 'auto' | 'javascript' | 'typescript' | 'jsx' | 'tsx';
 
 export type AnalysisMode = 'standard' | 'deep' | 'refactor' | 'architect';
 
@@ -50,6 +45,21 @@ export interface AnalyzeOptions {
   languageId?: string;
   /** Custom thresholds and settings from .codelyrc */
   config?: CodelyConfig;
+}
+
+/** First matching `pattern` (minimatch vs repo-relative path, `/` separators) wins. */
+export interface CodelyPathOverride {
+  pattern: string;
+  thresholds?: {
+    cyclomatic?: number;
+    maxDepth?: number;
+    functionLength?: number;
+    fatigueScore?: number;
+  };
+  /** When false, VS Code extension skips diagnostics for matching files. */
+  diagnostics?: boolean;
+  /** When false, VS Code extension skips CodeLens for matching files. */
+  codeLens?: boolean;
 }
 
 export interface CodelyConfig {
@@ -64,16 +74,20 @@ export interface CodelyConfig {
     enabled: boolean;
     maxEntries: number;
   };
+  pathOverrides?: CodelyPathOverride[];
 }
 
 export interface ProjectHistory {
   lastAnalyzed: string;
-  files: Record<string, {
-    fatigue: number;
-    readability: number;
-    maintainability: number;
-    timestamp: string;
-  }>;
+  files: Record<
+    string,
+    {
+      fatigue: number;
+      readability: number;
+      maintainability: number;
+      timestamp: string;
+    }
+  >;
 }
 
 export interface FunctionMetrics {

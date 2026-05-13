@@ -119,11 +119,7 @@ function extractAstro(code: string, filepath: string): PreparedSource {
  * and return a synthetic filename so Babel picks the right plugins. `lineDelta`
  * shifts 1-based line numbers from the extracted snippet back to the original file.
  */
-export function prepareSourceForAnalysis(
-  code: string,
-  filepath: string,
-  languageId?: string,
-): PreparedSource {
+export function prepareSourceForAnalysis(code: string, filepath: string, languageId?: string): PreparedSource {
   const id = (languageId ?? '').toLowerCase();
   const ext = extOf(filepath);
   const isVue = id === 'vue' || ext === '.vue';

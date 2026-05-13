@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { parse } from '@babel/parser';
+import { parse, type ParserPlugin } from '@babel/parser';
 import traverse, { NodePath } from '@babel/traverse';
 import * as t from '@babel/types';
 import {
@@ -33,17 +33,15 @@ function pickPlugins(lang: SupportedLanguage, filename: string | undefined) {
         extLower.endsWith('.mts') ||
         extLower.endsWith('.cts')));
   const isJsx =
-    lang === 'jsx' ||
-    lang === 'tsx' ||
-    (lang === 'auto' && (extLower.endsWith('.jsx') || extLower.endsWith('.tsx')));
-  const plugins: any[] = [];
+    lang === 'jsx' || lang === 'tsx' || (lang === 'auto' && (extLower.endsWith('.jsx') || extLower.endsWith('.tsx')));
+  const plugins: ParserPlugin[] = [];
   if (isTs) plugins.push('typescript');
   if (isJsx) plugins.push('jsx');
   plugins.push('decorators-legacy', 'classProperties', 'classPrivateProperties', 'classPrivateMethods');
   return plugins;
 }
 
-function tryParse(code: string, plugins: any[]) {
+function tryParse(code: string, plugins: ParserPlugin[]) {
   return parse(code, {
     sourceType: 'unambiguous',
     allowReturnOutsideFunction: true,
@@ -140,10 +138,7 @@ function detectPatterns(path: NodePath<t.Function>): string[] {
     const stmts = bodyNode.body;
     if (stmts.length === 1 && t.isReturnStatement(stmts[0])) {
       const arg = stmts[0].argument;
-      if (
-        arg &&
-        (t.isMemberExpression(arg) || t.isIdentifier(arg) || t.isThisExpression(arg))
-      ) {
+      if (arg && (t.isMemberExpression(arg) || t.isIdentifier(arg) || t.isThisExpression(arg))) {
         patterns.add('getter');
       }
     }
@@ -158,7 +153,12 @@ function detectPatterns(path: NodePath<t.Function>): string[] {
 
     let guards = 0;
     for (const s of stmts) {
-      if (t.isIfStatement(s) && (t.isThrowStatement(s.consequent) || (t.isBlockStatement(s.consequent) && s.consequent.body.some((b) => t.isThrowStatement(b) || t.isReturnStatement(b))))) {
+      if (
+        t.isIfStatement(s) &&
+        (t.isThrowStatement(s.consequent) ||
+          (t.isBlockStatement(s.consequent) &&
+            s.consequent.body.some((b) => t.isThrowStatement(b) || t.isReturnStatement(b))))
+      ) {
         guards++;
       }
     }
@@ -176,7 +176,13 @@ function detectPatterns(path: NodePath<t.Function>): string[] {
         if (name === 'forEach') patterns.add('iterator');
         if (name === 'parse' && t.isIdentifier(callee.object) && callee.object.name === 'JSON') patterns.add('parser');
       }
-      if (t.isIdentifier(callee) && (callee.name === 'fetch' || callee.name === 'parse' || callee.name === 'parseInt' || callee.name === 'parseFloat')) {
+      if (
+        t.isIdentifier(callee) &&
+        (callee.name === 'fetch' ||
+          callee.name === 'parse' ||
+          callee.name === 'parseInt' ||
+          callee.name === 'parseFloat')
+      ) {
         if (callee.name === 'fetch') patterns.add('fetcher');
         if (callee.name === 'parse') patterns.add('parser');
       }
@@ -238,7 +244,13 @@ function analyzeFunction(path: NodePath<t.Function>, ownerClass?: string): Funct
   };
 
   path.traverse({
-    IfStatement: { enter: () => { cyclomatic++; enterDepth(); }, exit: exitDepth },
+    IfStatement: {
+      enter: () => {
+        cyclomatic++;
+        enterDepth();
+      },
+      exit: exitDepth,
+    },
     ConditionalExpression: { enter: enterTernary, exit: exitTernary },
     LogicalExpression(p) {
       if (p.node.operator === '&&' || p.node.operator === '||' || p.node.operator === '??') cyclomatic++;
@@ -249,22 +261,38 @@ function analyzeFunction(path: NodePath<t.Function>, ownerClass?: string): Funct
     UnaryExpression(p) {
       if (p.node.operator === '~') bitwiseOps++;
     },
-    SwitchCase(p) { if (p.node.test) cyclomatic++; },
-    CatchClause: { enter: () => { cyclomatic++; enterDepth(); }, exit: exitDepth },
+    SwitchCase(p) {
+      if (p.node.test) cyclomatic++;
+    },
+    CatchClause: {
+      enter: () => {
+        cyclomatic++;
+        enterDepth();
+      },
+      exit: exitDepth,
+    },
     ForStatement: { enter: enterLoop, exit: exitLoop },
     ForInStatement: { enter: enterLoop, exit: exitLoop },
     ForOfStatement: { enter: enterLoop, exit: exitLoop },
     WhileStatement: { enter: enterLoop, exit: exitLoop },
     DoWhileStatement: { enter: enterLoop, exit: exitLoop },
-    AwaitExpression() { hasAwait = true; },
-    ReturnStatement() { returnPaths++; },
+    AwaitExpression() {
+      hasAwait = true;
+    },
+    ReturnStatement() {
+      returnPaths++;
+    },
     CallExpression(p) {
       const se = describeCallSideEffect(p.node);
       if (se) sideEffects.add(se);
     },
     AssignmentExpression(p) {
       const left = p.node.left;
-      if (t.isMemberExpression(left) && t.isIdentifier(left.object) && KNOWN_SIDE_EFFECT_OBJECTS.has(left.object.name)) {
+      if (
+        t.isMemberExpression(left) &&
+        t.isIdentifier(left.object) &&
+        KNOWN_SIDE_EFFECT_OBJECTS.has(left.object.name)
+      ) {
         sideEffects.add(`mutates ${left.object.name}`);
       }
     },
@@ -519,13 +547,20 @@ function estimateTimeComplexity(metrics: FileMetrics): string {
 function buildDataFlow(metrics: FileMetrics): string[] {
   const flow: string[] = [];
   if (metrics.imports.length > 0) {
-    flow.push(`Inputs arrive via imports: ${metrics.imports.slice(0, 5).join(', ')}${metrics.imports.length > 5 ? ', …' : ''}.`);
+    flow.push(
+      `Inputs arrive via imports: ${metrics.imports.slice(0, 5).join(', ')}${metrics.imports.length > 5 ? ', …' : ''}.`,
+    );
   }
   const fetchers = metrics.functions.filter((f) => f.detectedPatterns.includes('fetcher'));
   if (fetchers.length > 0) flow.push(`External data is fetched by: ${fetchers.map((f) => f.name).join(', ')}.`);
   const sideEffectFns = metrics.functions.filter((f) => f.sideEffects.length > 0);
   if (sideEffectFns.length > 0) {
-    flow.push(`Side effects (data leaves the function): ${sideEffectFns.map((f) => `${f.name}→${f.sideEffects[0]}`).slice(0, 4).join('; ')}.`);
+    flow.push(
+      `Side effects (data leaves the function): ${sideEffectFns
+        .map((f) => `${f.name}→${f.sideEffects[0]}`)
+        .slice(0, 4)
+        .join('; ')}.`,
+    );
   }
   if (metrics.exports.length > 0 || metrics.hasDefaultExport) {
     const ex = [...metrics.exports];
@@ -556,7 +591,8 @@ function emptyMetrics(code: string): FileMetrics {
   };
 }
 
-function parseErrorReport(err: any): CodelyReport {
+function parseErrorReport(err: unknown): CodelyReport {
+  const message = err instanceof Error ? err.message : String(err);
   return {
     summary: 'Could not parse the input as JavaScript/TypeScript.',
     intent: 'Parsing failed — file may be a different language or have a fatal syntax error.',
@@ -570,7 +606,7 @@ function parseErrorReport(err: any): CodelyReport {
     },
     code_fatigue_analysis: {
       fatigue_score: 0,
-      fatigue_reason: [`parser error: ${String(err?.message ?? err).slice(0, 200)}`],
+      fatigue_reason: [`parser error: ${message.slice(0, 200)}`],
       risk_points: [],
     },
     refactoring_suggestions: [],
@@ -601,10 +637,10 @@ export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): Ana
   let ast: t.File;
   try {
     ast = tryParse(code, plugins);
-  } catch (err: any) {
+  } catch (err: unknown) {
     // If Babel fails, try native heuristic as a fallback if it looks like a supported extension
     if (NATIVE_LANGUAGE_IDS.has(langId)) {
-        return analyzeNativeWithMetrics(code, langId, filenameForParser, mode);
+      return analyzeNativeWithMetrics(code, langId, filenameForParser, mode);
     }
     return { report: parseErrorReport(err), metrics: emptyMetrics(code) };
   }
@@ -618,9 +654,10 @@ export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): Ana
   const intent = generateIntent(metrics);
   const human = translateToHuman(metrics, summary, intent);
 
-  const high_level_flow = metrics.topLevelFlow.length > 0
-    ? metrics.topLevelFlow
-    : ['(file body is empty or contains no top-level statements)'];
+  const high_level_flow =
+    metrics.topLevelFlow.length > 0
+      ? metrics.topLevelFlow
+      : ['(file body is empty or contains no top-level statements)'];
 
   const report: CodelyReport = {
     summary,

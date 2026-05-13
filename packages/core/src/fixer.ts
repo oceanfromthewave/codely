@@ -1,4 +1,4 @@
-import traverse, { NodePath } from '@babel/traverse';
+import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { parse } from '@babel/parser';
 import generate from '@babel/generator';

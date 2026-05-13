@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
-import { CodelyReport, analyzeWithMetrics } from '@codely/core';
+import { CodelyReport, analyzeWithMetrics, analyzeProject, listGitChangedFiles } from '@codely/core';
 import { ReportPanel } from './panel';
 import { getAnalysis, analyzeOptionsForDocument, invalidate, isSupported, clearAll } from './cache';
 import { CodelyCodeLensProvider } from './codelens';
 import { refreshDiagnostics, getCollection, clear as clearDiag } from './diagnostics';
 import { setupStatusBar } from './statusbar';
+import { registerCodelyCodeActions } from './codeActions';
+import { codelyContextForDocument } from './workspaceContext';
 
 let lastReport: CodelyReport | undefined;
 /** Per-document debounce so switching files does not cancel another file's pending refresh. */
@@ -54,9 +56,8 @@ export function activate(context: vscode.ExtensionContext) {
     { language: 'objective-c', scheme: 'untitled' },
     { language: 'objective-cpp', scheme: 'untitled' },
   ];
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(selector, codelens),
-  );
+  context.subscriptions.push(vscode.languages.registerCodeLensProvider(selector, codelens));
+  context.subscriptions.push(registerCodelyCodeActions(context));
 
   const refreshStatus = setupStatusBar(context);
 
@@ -64,8 +65,10 @@ export function activate(context: vscode.ExtensionContext) {
     if (!doc || !isSupported(doc)) return;
     try {
       refreshDiagnostics(doc);
-    } catch (err: any) {
-      output.appendLine(`[Codely diagnostics error] ${err?.stack ?? err}`);
+    } catch (err: unknown) {
+      output.appendLine(
+        `[Codely diagnostics error] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
+      );
     }
     codelens.refresh();
     refreshStatus();
@@ -92,10 +95,10 @@ export function activate(context: vscode.ExtensionContext) {
       const { report } = getAnalysis(editor.document);
       lastReport = report;
       ReportPanel.showOrUpdate(context.extensionUri, report, editor.document.fileName, appVersion);
-    } catch (err: any) {
-      output.appendLine(`[Codely error] ${err?.stack ?? err}`);
+    } catch (err: unknown) {
+      output.appendLine(`[Codely error] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
       output.show(true);
-      vscode.window.showErrorMessage(`Codely failed: ${err?.message ?? err}`);
+      vscode.window.showErrorMessage(`Codely failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -124,17 +127,19 @@ export function activate(context: vscode.ExtensionContext) {
       const title = `${editor.document.fileName} (selection L${sel.start.line + 1}-${sel.end.line + 1})`;
       try {
         const baseOpts = analyzeOptionsForDocument(editor.document);
+        const { effectiveConfig } = codelyContextForDocument(editor.document);
         const { report: selReport } = analyzeWithMetrics(text, {
           ...baseOpts,
           filename: editor.document.fileName,
           languageId: undefined,
+          config: effectiveConfig,
         });
         lastReport = selReport;
         ReportPanel.showOrUpdate(context.extensionUri, selReport, title, appVersion);
-      } catch (err: any) {
-        output.appendLine(`[Codely error] ${err?.stack ?? err}`);
+      } catch (err: unknown) {
+        output.appendLine(`[Codely error] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
         output.show(true);
-        vscode.window.showErrorMessage(`Codely failed: ${err?.message ?? err}`);
+        vscode.window.showErrorMessage(`Codely failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }),
 
@@ -155,6 +160,38 @@ export function activate(context: vscode.ExtensionContext) {
       await vscode.window.showTextDocument(doc, { preview: true });
     }),
 
+    vscode.commands.registerCommand('codely.analyzeGitChanges', async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        vscode.window.showWarningMessage('Codely: open a workspace folder first.');
+        return;
+      }
+      const ref = vscode.workspace.getConfiguration('codely').get<string>('gitCompareRef', 'main') ?? 'main';
+      const rels = listGitChangedFiles(folder.uri.fsPath, ref);
+      if (rels === null) {
+        vscode.window.showErrorMessage('Codely: git failed or this folder is not a git repository.');
+        return;
+      }
+      if (rels.length === 0) {
+        vscode.window.showInformationMessage(`Codely: no changed files vs ${ref}.`);
+        return;
+      }
+      try {
+        const summary = analyzeProject(folder.uri.fsPath, { onlyRelativePaths: new Set(rels) });
+        const top = summary.hotspots[0];
+        const topStr = top ? `${top.file}:${top.line} ${top.name} (score ${top.score.toFixed(1)})` : 'none';
+        const msg = `vs ${ref}: ${summary.totalFiles} files · avg readability ${summary.averageReadability.toFixed(1)}/10 · avg maintainability ${summary.averageMaintainability.toFixed(1)}/10 · top hotspot: ${topStr}`;
+        const pick = await vscode.window.showInformationMessage(msg, 'Copy summary JSON');
+        if (pick === 'Copy summary JSON') {
+          await vscode.env.clipboard.writeText(JSON.stringify(summary, null, 2));
+        }
+      } catch (err: unknown) {
+        output.appendLine(`[Codely git summary error] ${err instanceof Error ? err.message : String(err)}`);
+        output.show(true);
+        vscode.window.showErrorMessage(`Codely: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }),
+
     vscode.commands.registerCommand(
       'codely.revealFunction',
       async (uri: vscode.Uri, line: number, _name: string, _ownerClass?: string) => {
@@ -162,10 +199,7 @@ export function activate(context: vscode.ExtensionContext) {
         const editor = await vscode.window.showTextDocument(doc);
         const safeLine = Math.max(0, Math.min(doc.lineCount - 1, line));
         const position = new vscode.Position(safeLine, 0);
-        editor.revealRange(
-          new vscode.Range(position, position),
-          vscode.TextEditorRevealType.InCenterIfOutsideViewport,
-        );
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
         editor.selection = new vscode.Selection(position, position);
         showReport(editor);
       },
@@ -176,7 +210,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (isSupported(e.document)) {
         invalidate(e.document);
-        debouncedRefresh(e.document);
+        const typing = vscode.workspace.getConfiguration('codely').get<boolean>('analyzeWhileTyping', true);
+        if (typing) debouncedRefresh(e.document);
       }
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {

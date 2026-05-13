@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { FunctionMetrics, perFunctionLoadScore } from '@codely/core';
 import { getAnalysis, isSupported } from './cache';
+import { codelyContextForDocument } from './workspaceContext';
 
 function loadLabel(score: number): string {
   if (score >= 4) return 'HIGH load';
@@ -17,7 +18,8 @@ function perFunctionTitle(fn: FunctionMetrics): string {
   if (fn.bitwiseOps >= 3) parts.push(`${fn.bitwiseOps} bitwise`);
   if (fn.loopNesting >= 2) parts.push(`O(n^${fn.loopNesting})`);
   if (fn.lengthLines > 40) parts.push(`${fn.lengthLines}L`);
-  if (fn.sideEffects.length > 0) parts.push(`${fn.sideEffects.length} side effect${fn.sideEffects.length === 1 ? '' : 's'}`);
+  if (fn.sideEffects.length > 0)
+    parts.push(`${fn.sideEffects.length} side effect${fn.sideEffects.length === 1 ? '' : 's'}`);
   if (fn.detectedPatterns.length > 0) {
     const filtered = fn.detectedPatterns.filter((p) => p !== 'nested-ternary' && p !== 'bitwise-heavy');
     if (filtered.length > 0) parts.push(filtered.slice(0, 2).join('+'));
@@ -42,6 +44,9 @@ export class CodelyCodeLensProvider implements vscode.CodeLensProvider {
     if (!isSupported(document)) return [];
     const cfg = vscode.workspace.getConfiguration('codely');
     if (cfg.get<boolean>('enableCodeLens', true) === false) return [];
+
+    const { resolved } = codelyContextForDocument(document);
+    if (!resolved.codeLens) return [];
 
     const { report, metrics } = getAnalysis(document);
     const lenses: vscode.CodeLens[] = [];

@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { analyzeWithMetrics, perFunctionLoadScore } from './analyzer';
-import { FileMetrics, FunctionMetrics, CodelyReport, ProjectHistory, CodelyConfig } from './schema';
-import { loadConfig } from './config';
+import { ProjectHistory, CodelyConfig } from './schema';
+import { loadConfig, resolveFileSettings } from './config';
 
 export interface ProjectHotspot {
   file: string;
@@ -25,16 +25,47 @@ export interface ProjectSummary {
 }
 
 const SUPPORTED_EXTENSIONS = new Set([
-  '.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.jsx', '.tsx',
-  '.vue', '.svelte', '.astro',
-  '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.kt', '.scala', '.groovy', '.m', '.mm'
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.mts',
+  '.cts',
+  '.jsx',
+  '.tsx',
+  '.vue',
+  '.svelte',
+  '.astro',
+  '.c',
+  '.cpp',
+  '.h',
+  '.hpp',
+  '.cs',
+  '.java',
+  '.kt',
+  '.scala',
+  '.groovy',
+  '.m',
+  '.mm',
 ]);
 
-export function analyzeProject(dirPath: string): ProjectSummary {
+export interface AnalyzeProjectOptions {
+  /** Only analyze these repo-relative paths (normalized with `/`). When empty/omitted, all supported files are analyzed. */
+  onlyRelativePaths?: Set<string>;
+}
+
+export function analyzeProject(dirPath: string, options?: AnalyzeProjectOptions): ProjectSummary {
   const config = loadConfig(dirPath);
   const ignoreDirs = new Set(config.exclude || ['node_modules', 'dist', 'build', '.git']);
-  
-  const files = getAllFiles(dirPath, [], ignoreDirs);
+
+  let files = getAllFiles(dirPath, [], ignoreDirs);
+  if (options?.onlyRelativePaths && options.onlyRelativePaths.size > 0) {
+    const want = options.onlyRelativePaths;
+    files = files.filter((f) => {
+      const rel = path.relative(dirPath, f).split(path.sep).join('/');
+      return want.has(rel);
+    });
+  }
   let totalLines = 0;
   let totalFunctions = 0;
   let sumReadability = 0;
@@ -47,23 +78,29 @@ export function analyzeProject(dirPath: string): ProjectSummary {
   const history = loadHistory(dirPath);
   const newHistory: ProjectHistory = {
     lastAnalyzed: new Date().toISOString(),
-    files: {}
+    files: {},
   };
 
   for (const file of files) {
     const code = fs.readFileSync(file, 'utf8');
     const relPath = path.relative(dirPath, file);
     const ext = path.extname(file).toLowerCase();
-    
+
     let languageId: string | undefined;
     if (ext === '.vue') languageId = 'vue';
     else if (ext === '.svelte') languageId = 'svelte';
     else if (ext === '.astro') languageId = 'astro';
 
-    const { report, metrics } = analyzeWithMetrics(code, { 
-      filename: path.basename(file), 
+    const resolved = resolveFileSettings(relPath.split(path.sep).join('/'), config);
+    const fileConfig: CodelyConfig = {
+      ...config,
+      thresholds: resolved.thresholds,
+    };
+
+    const { report, metrics } = analyzeWithMetrics(code, {
+      filename: path.basename(file),
       languageId,
-      config
+      config: fileConfig,
     });
 
     if (metrics.totalLines > 0) {
@@ -72,7 +109,7 @@ export function analyzeProject(dirPath: string): ProjectSummary {
       totalFunctions += metrics.functions.length;
       sumReadability += report.complexity_analysis.readability_score;
       sumMaintainability += report.complexity_analysis.maintainability_score;
-      
+
       let delta: number | undefined;
       if (history.files[relPath]) {
         delta = report.code_fatigue_analysis.fatigue_score - history.files[relPath].fatigue;
@@ -84,7 +121,7 @@ export function analyzeProject(dirPath: string): ProjectSummary {
         fatigue: report.code_fatigue_analysis.fatigue_score,
         readability: report.complexity_analysis.readability_score,
         maintainability: report.complexity_analysis.maintainability_score,
-        timestamp: newHistory.lastAnalyzed
+        timestamp: newHistory.lastAnalyzed,
       };
 
       for (const fn of metrics.functions) {
@@ -94,7 +131,7 @@ export function analyzeProject(dirPath: string): ProjectSummary {
           score: perFunctionLoadScore(fn),
           cyclomatic: fn.cyclomatic,
           length: fn.lengthLines,
-          line: fn.startLine
+          line: fn.startLine,
         });
       }
     }
@@ -104,9 +141,7 @@ export function analyzeProject(dirPath: string): ProjectSummary {
     saveHistory(dirPath, newHistory);
   }
 
-  const hotspots = allFunctions
-    .sort((a, b) => b.score - a.score || b.cyclomatic - a.cyclomatic)
-    .slice(0, 10);
+  const hotspots = allFunctions.sort((a, b) => b.score - a.score || b.cyclomatic - a.cyclomatic).slice(0, 10);
 
   return {
     totalFiles: files.length,
@@ -115,7 +150,7 @@ export function analyzeProject(dirPath: string): ProjectSummary {
     averageReadability: analyzedCount ? sumReadability / analyzedCount : 0,
     averageMaintainability: analyzedCount ? sumMaintainability / analyzedCount : 0,
     hotspots,
-    fileScores: fileScores.sort((a, b) => b.fatigue - a.fatigue).slice(0, 10)
+    fileScores: fileScores.sort((a, b) => b.fatigue - a.fatigue).slice(0, 10),
   };
 }
 
@@ -142,7 +177,9 @@ function loadHistory(rootPath: string): ProjectHistory {
   if (fs.existsSync(historyPath)) {
     try {
       return JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-    } catch (e) {}
+    } catch {
+      // Ignore corrupt history file
+    }
   }
   return { lastAnalyzed: '', files: {} };
 }

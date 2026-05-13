@@ -18,7 +18,9 @@ export function generateSummary(metrics: FileMetrics): string {
   if (classCount > 0 && fnCount === 0) {
     parts.push(`A ${lines}-line file defining ${classCount} class${classCount === 1 ? '' : 'es'}.`);
   } else if (classCount > 0) {
-    parts.push(`A ${lines}-line file with ${classCount} class${classCount === 1 ? '' : 'es'} and ${fnCount} top-level function${fnCount === 1 ? '' : 's'}/method${fnCount === 1 ? '' : 's'}.`);
+    parts.push(
+      `A ${lines}-line file with ${classCount} class${classCount === 1 ? '' : 'es'} and ${fnCount} top-level function${fnCount === 1 ? '' : 's'}/method${fnCount === 1 ? '' : 's'}.`,
+    );
   } else if (fnCount > 0) {
     parts.push(`A ${lines}-line script with ${fnCount} function${fnCount === 1 ? '' : 's'}.`);
   } else {
@@ -87,14 +89,19 @@ export function translateToHuman(metrics: FileMetrics, summary: string, intent: 
 
   if (metrics.imports.length > 0) {
     lines.push(
-      `Inputs reach the file through imports of ${metrics.imports.slice(0, 4).map((s) => `'${s}'`).join(', ')}${metrics.imports.length > 4 ? ', and more' : ''}.`,
+      `Inputs reach the file through imports of ${metrics.imports
+        .slice(0, 4)
+        .map((s) => `'${s}'`)
+        .join(', ')}${metrics.imports.length > 4 ? ', and more' : ''}.`,
     );
   }
 
   if (metrics.classes.length > 0) {
     const c = metrics.classes[0];
     const ext = c.extendsName ? ` (extends ${c.extendsName})` : '';
-    lines.push(`The central type is class \`${c.name}\`${ext}, which holds ${c.methodCount} method${c.methodCount === 1 ? '' : 's'}.`);
+    lines.push(
+      `The central type is class \`${c.name}\`${ext}, which holds ${c.methodCount} method${c.methodCount === 1 ? '' : 's'}.`,
+    );
   }
 
   if (metrics.functions.length > 0) {
@@ -125,7 +132,9 @@ export function translateToHuman(metrics: FileMetrics, summary: string, intent: 
     if (metrics.exports.length > 0) ex.push(`named exports {${metrics.exports.slice(0, 6).join(', ')}}`);
     lines.push(`The file exposes ${ex.join(' and ')} to the rest of the codebase.`);
   } else {
-    lines.push('The file exports nothing — it is either a script entry point or its outputs are written through side effects.');
+    lines.push(
+      'The file exports nothing — it is either a script entry point or its outputs are written through side effects.',
+    );
   }
 
   return lines.join(' ');
@@ -136,9 +145,11 @@ function behaviorPhrase(fn: FunctionMetrics): string {
   if (fn.detectedPatterns.includes('reducer')) return 'It folds a collection into a single value.';
   if (fn.detectedPatterns.includes('mapper')) return 'It transforms each element of an input collection.';
   if (fn.detectedPatterns.includes('filter')) return 'It selects a subset of inputs that pass a condition.';
-  if (fn.detectedPatterns.includes('validator/guard')) return 'It rejects invalid inputs up front before doing the real work.';
+  if (fn.detectedPatterns.includes('validator/guard'))
+    return 'It rejects invalid inputs up front before doing the real work.';
   if (fn.detectedPatterns.includes('parser')) return 'It converts an input encoding into a structured form.';
-  if (fn.detectedPatterns.includes('switch-heavy')) return 'It dispatches one of many behaviors based on a discriminator.';
+  if (fn.detectedPatterns.includes('switch-heavy'))
+    return 'It dispatches one of many behaviors based on a discriminator.';
   if (fn.kind === 'constructor') return 'It initializes state for new instances.';
   if (fn.cyclomatic >= 10) return 'Its many branches suggest several responsibilities are tangled together.';
   return 'Its behavior is a mix that did not match a single known pattern.';
@@ -190,7 +201,7 @@ export function generateHtmlReport(report: CodelyReport, filename: string): stri
             <div class="stat-value" style="color: ${fColor}">${fScore}/10</div>
             <div class="fatigue-bar"><div class="fatigue-fill" style="width: ${fScore * 10}%; background: ${fColor}"></div></div>
             <ul style="margin-top: 1rem; font-size: 0.875rem;">
-                ${report.code_fatigue_analysis.fatigue_reason.map(r => `<li>${r}</li>`).join('')}
+                ${report.code_fatigue_analysis.fatigue_reason.map((r) => `<li>${r}</li>`).join('')}
             </ul>
         </div>
         <div class="card">
@@ -204,19 +215,23 @@ export function generateHtmlReport(report: CodelyReport, filename: string): stri
     <div class="card">
         <h2>Refactoring Suggestions</h2>
         <ul class="suggestions">
-            ${report.refactoring_suggestions.map(s => `<li class="suggestion">${s}</li>`).join('')}
+            ${report.refactoring_suggestions.map((s) => `<li class="suggestion">${s}</li>`).join('')}
         </ul>
     </div>
 
     <div class="card">
         <h2>Structure Breakdown</h2>
-        ${report.structure_breakdown.map(p => `
+        ${report.structure_breakdown
+          .map(
+            (p) => `
             <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #f3f4f6;">
                 <div style="font-weight: bold; color: #2563eb;">${p.part}</div>
                 <div style="font-size: 0.875rem; color: #4b5563;"><strong>Why:</strong> ${p.responsibility}</div>
                 <div style="font-size: 0.875rem; color: #4b5563;"><strong>How:</strong> ${p.logic}</div>
             </div>
-        `).join('')}
+        `,
+          )
+          .join('')}
     </div>
 
     <div class="card">

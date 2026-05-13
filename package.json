@@ -11,11 +11,22 @@
     "build:core": "npm run build --workspace @codely/core",
     "build:vscode": "npm run build --workspace codelyLab",
     "test": "npm run test --workspace @codely/core",
+    "lint": "eslint packages/core/src packages/vscode/src",
+    "format": "prettier --write \"packages/*/src/**/*.ts\" \"packages/core/test/**/*.ts\" \"packages/core/vitest.config.ts\" \"eslint.config.mjs\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.ts\" \"packages/core/test/**/*.ts\" \"packages/core/vitest.config.ts\" \"eslint.config.mjs\" \"scripts/**/*.mjs\"",
     "package:vscode": "npm run build && npm run package --workspace codelyLab",
     "publish:vscode": "npm run publish:marketplace --workspace codelyLab",
     "demo": "node packages/core/dist/cli.js examples/legacy.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "typescript-eslint": "^8.59.3"
   }
 }

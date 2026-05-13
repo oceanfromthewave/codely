@@ -23,20 +23,20 @@ jobs:
         
       - name: Build Codely
         run: npm run build
-        
+
+      - name: Run tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
       - name: Run Project Analysis
         run: |
-          # Run analysis on the current directory
-          # You can set a threshold for fatigue score or readability
-          # For example, fail if any file has fatigue score > 8
           node packages/core/dist/cli.js . --json > report.json
-          
-          # Basic check: fail if average maintainability is too low
-          MAINTAINABILITY=$(jq '.averageMaintainability' report.json)
-          if (( $(echo "$MAINTAINABILITY < 5.0" | bc -l) )); then
-            echo "Project maintainability is too low: $MAINTAINABILITY"
-            exit 1
-          fi
+          node scripts/ci-check-maintainability.mjs report.json
           
       - name: Upload Analysis Artifact
         uses: actions/upload-artifact@v4

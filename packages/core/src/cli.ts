@@ -2,13 +2,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
-import { analyze, analyzeWithMetrics } from './analyzer';
-import { analyzeProject, ProjectSummary } from './project';
+import { analyzeWithMetrics } from './analyzer';
+import { analyzeProject, type ProjectSummary } from './project';
+import { listGitChangedFiles } from './gitChanged';
 import { generateHtmlReport } from './translate';
 import { loadConfig } from './config';
+import { fixMagicNumbers } from './fixer';
 
 function usage() {
-  console.error('Usage: codely <file_or_directory> [--json] [--html <out.html>] [--fix]');
+  console.error(
+    'Usage: codely <file_or_directory> [--json] [--html <out.html>] [--fix] [--git-base <ref>]\n' +
+      '  --git-base <ref>  (directory only) Restrict analysis to files changed vs <ref> (git working tree + staged).',
+  );
   process.exit(2);
 }
 
@@ -44,7 +49,9 @@ function printProjectSummary(summary: ProjectSummary) {
   console.log(paint('  Top 10 Hotspots (Most Complex Functions)', 'bold'));
   for (const h of summary.hotspots) {
     const color = h.score >= 7 ? 'red' : h.score >= 4 ? 'yellow' : 'cyan';
-    console.log(`    ${paint(bar(h.score, 5), color)} ${paint(h.name, 'bold')} ${paint('(' + h.file + ':' + h.line + ')', 'gray')}`);
+    console.log(
+      `    ${paint(bar(h.score, 5), color)} ${paint(h.name, 'bold')} ${paint('(' + h.file + ':' + h.line + ')', 'gray')}`,
+    );
     console.log(`      Score: ${h.score}, Cyclomatic: ${h.cyclomatic}, Lines: ${h.length}`);
   }
   console.log();
@@ -65,7 +72,7 @@ function printProjectSummary(summary: ProjectSummary) {
 async function ask(question: string): Promise<boolean> {
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
   return new Promise((resolve) => {
     rl.question(paint(`  ? ${question} (y/N): `, 'cyan'), (answer) => {
@@ -76,7 +83,17 @@ async function ask(question: string): Promise<boolean> {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  let gitBase: string | undefined;
+  const args: string[] = [];
+  for (let i = 0; i < rawArgs.length; i++) {
+    if (rawArgs[i] === '--git-base') {
+      gitBase = rawArgs[++i];
+      if (!gitBase) usage();
+      continue;
+    }
+    args.push(rawArgs[i]);
+  }
   if (args.length === 0) usage();
   const inputPath = args[0];
   const wantsJson = args.includes('--json');
@@ -94,7 +111,30 @@ async function main() {
 
   const stats = fs.statSync(inputPath);
   if (stats.isDirectory()) {
-    const summary = analyzeProject(inputPath);
+    let summary: ProjectSummary;
+    if (gitBase) {
+      const rels = listGitChangedFiles(inputPath, gitBase);
+      if (rels === null) {
+        console.error('Could not list changed files (git error or not a repository).');
+        process.exit(1);
+      }
+      if (rels.length === 0) {
+        console.log(`No changed files vs ${gitBase}.`);
+        summary = {
+          totalFiles: 0,
+          totalLines: 0,
+          totalFunctions: 0,
+          averageReadability: 0,
+          averageMaintainability: 0,
+          hotspots: [],
+          fileScores: [],
+        };
+      } else {
+        summary = analyzeProject(inputPath, { onlyRelativePaths: new Set(rels) });
+      }
+    } else {
+      summary = analyzeProject(inputPath);
+    }
     if (wantsJson) {
       process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
     } else {
@@ -107,13 +147,12 @@ async function main() {
   const code = fs.readFileSync(filename, 'utf8');
   const abs = path.resolve(filename);
   const ext = path.extname(abs).toLowerCase();
-  const languageId =
-    ext === '.vue' ? 'vue' : ext === '.svelte' ? 'svelte' : ext === '.astro' ? 'astro' : undefined;
-  
-  const { report, metrics } = analyzeWithMetrics(code, { 
-    filename: path.basename(filename), 
+  const languageId = ext === '.vue' ? 'vue' : ext === '.svelte' ? 'svelte' : ext === '.astro' ? 'astro' : undefined;
+
+  const { report, metrics } = analyzeWithMetrics(code, {
+    filename: path.basename(filename),
     languageId,
-    config
+    config,
   });
 
   if (htmlPath) {
@@ -141,7 +180,8 @@ async function main() {
   console.log();
   console.log(paint('  High-level flow', 'bold'));
   for (const s of report.high_level_flow.slice(0, 10)) console.log('    • ' + s);
-  if (report.high_level_flow.length > 10) console.log(paint(`    … +${report.high_level_flow.length - 10} more`, 'gray'));
+  if (report.high_level_flow.length > 10)
+    console.log(paint(`    … +${report.high_level_flow.length - 10} more`, 'gray'));
   console.log();
   console.log(paint('  Structure', 'bold'));
   for (const p of report.structure_breakdown.slice(0, 6)) {
@@ -155,8 +195,16 @@ async function main() {
   console.log();
   console.log(paint('  Complexity', 'bold'));
   console.log('    Time:           ' + report.complexity_analysis.time_complexity_estimate);
-  console.log('    Readability:    ' + paint(bar(report.complexity_analysis.readability_score), 'green') + `  ${report.complexity_analysis.readability_score}/10`);
-  console.log('    Maintainability:' + paint(bar(report.complexity_analysis.maintainability_score), 'green') + `  ${report.complexity_analysis.maintainability_score}/10`);
+  console.log(
+    '    Readability:    ' +
+      paint(bar(report.complexity_analysis.readability_score), 'green') +
+      `  ${report.complexity_analysis.readability_score}/10`,
+  );
+  console.log(
+    '    Maintainability:' +
+      paint(bar(report.complexity_analysis.maintainability_score), 'green') +
+      `  ${report.complexity_analysis.maintainability_score}/10`,
+  );
   console.log();
   const fScore = report.code_fatigue_analysis.fatigue_score;
   const fColor = fScore >= 7 ? 'red' : fScore >= 4 ? 'yellow' : 'green';
@@ -179,7 +227,6 @@ async function main() {
   if (wantsFix && metrics.magicNumbers > 0) {
     const shouldFix = await ask(`Found ${metrics.magicNumbers} magic numbers. Extract to constants?`);
     if (shouldFix) {
-      const { fixMagicNumbers } = require('./fixer');
       const fixedCode = fixMagicNumbers(code);
       fs.writeFileSync(filename, fixedCode);
       console.log(paint('    ✓ Fixed magic numbers and updated file.', 'green'));

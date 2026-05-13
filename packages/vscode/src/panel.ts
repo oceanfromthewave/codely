@@ -45,15 +45,9 @@ function renderHtml(report: CodelyReport, title: string, appVersion: string): st
     .join('');
 
   const dataFlow = r.data_flow.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
-  const fatigueReasons = r.code_fatigue_analysis.fatigue_reason
-    .map((s) => `<li>${escapeHtml(s)}</li>`)
-    .join('');
-  const risks = r.code_fatigue_analysis.risk_points
-    .map((s) => `<li class="risk">${escapeHtml(s)}</li>`)
-    .join('');
-  const refactors = r.refactoring_suggestions
-    .map((s) => `<li>${escapeHtml(s)}</li>`)
-    .join('');
+  const fatigueReasons = r.code_fatigue_analysis.fatigue_reason.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+  const risks = r.code_fatigue_analysis.risk_points.map((s) => `<li class="risk">${escapeHtml(s)}</li>`).join('');
+  const refactors = r.refactoring_suggestions.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
 
   return `<!doctype html>
 <html lang="en">
@@ -216,6 +210,10 @@ function renderHtml(report: CodelyReport, title: string, appVersion: string): st
     </div>
   </div>
   <p class="prose muted" style="margin-top:2px">Time complexity estimate: ${escapeHtml(r.complexity_analysis.time_complexity_estimate)}</p>
+
+  <p class="prose muted" style="margin-top:14px">
+    <strong>About these scores:</strong> JavaScript/TypeScript metrics come from a local AST (Babel). C-family and JVM buffers use a masked-text heuristic, not a compiler front-end — treat numbers as directional signals, not proof. Use <code>// codely-disable-next-line</code>, <code>// codely-disable-line</code>, or <code>// codely-disable-file</code> in source to silence editor diagnostics where intentional.
+  </p>
 
   <h2>High-level flow</h2>
   <ol>${flow}</ol>

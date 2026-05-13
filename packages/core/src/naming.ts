@@ -28,7 +28,7 @@ export function isPoorName(name: string, allowSingleLetters: Set<string>): boole
   return GENERIC_NAMES.has(name.toLowerCase());
 }
 
-function shortName(node: t.Node | null | undefined, limit = 60): string {
+function shortName(node: t.Node | null | undefined, _limit = 60): string {
   if (!node) return '?';
   if (t.isIdentifier(node)) return node.name;
   if (t.isStringLiteral(node)) return `"${node.value.slice(0, 20)}"`;
@@ -58,7 +58,9 @@ export function describeTopLevelStatement(stmt: t.Statement): string | null {
   if (t.isExportNamedDeclaration(stmt)) {
     const decl = stmt.declaration;
     if (decl && 'id' in decl && decl.id && t.isIdentifier(decl.id)) return `Exports ${decl.id.name}.`;
-    const names = (stmt.specifiers ?? []).map((s) => (t.isExportSpecifier(s) && t.isIdentifier(s.exported) ? s.exported.name : '?')).join(', ');
+    const names = (stmt.specifiers ?? [])
+      .map((s) => (t.isExportSpecifier(s) && t.isIdentifier(s.exported) ? s.exported.name : '?'))
+      .join(', ');
     return `Exports {${names}}.`;
   }
   if (t.isFunctionDeclaration(stmt)) {
@@ -70,14 +72,18 @@ export function describeTopLevelStatement(stmt: t.Statement): string | null {
     return `Defines class ${stmt.id?.name ?? '(anonymous)'}${ext}.`;
   }
   if (t.isVariableDeclaration(stmt)) {
-    const names = stmt.declarations
-      .map((d) => (t.isIdentifier(d.id) ? d.id.name : '…'))
-      .join(', ');
+    const names = stmt.declarations.map((d) => (t.isIdentifier(d.id) ? d.id.name : '…')).join(', ');
     return `Declares ${stmt.kind} ${names}.`;
   }
   if (t.isIfStatement(stmt)) return 'Branches on a top-level condition.';
   if (t.isTryStatement(stmt)) return 'Wraps a top-level block in try/catch.';
-  if (t.isForStatement(stmt) || t.isForInStatement(stmt) || t.isForOfStatement(stmt) || t.isWhileStatement(stmt) || t.isDoWhileStatement(stmt)) {
+  if (
+    t.isForStatement(stmt) ||
+    t.isForInStatement(stmt) ||
+    t.isForOfStatement(stmt) ||
+    t.isWhileStatement(stmt) ||
+    t.isDoWhileStatement(stmt)
+  ) {
     return 'Runs a top-level loop.';
   }
   if (t.isExpressionStatement(stmt)) {
@@ -85,7 +91,8 @@ export function describeTopLevelStatement(stmt: t.Statement): string | null {
     if (t.isCallExpression(e)) {
       const callee = e.callee;
       if (t.isIdentifier(callee)) return `Calls ${callee.name}() at top level.`;
-      if (t.isMemberExpression(callee) && t.isIdentifier(callee.property)) return `Calls ${shortName((callee as t.MemberExpression).object)}.${callee.property.name}() at top level.`;
+      if (t.isMemberExpression(callee) && t.isIdentifier(callee.property))
+        return `Calls ${shortName((callee as t.MemberExpression).object)}.${callee.property.name}() at top level.`;
       if (t.isFunctionExpression(callee) || t.isArrowFunctionExpression(callee)) return 'Runs an IIFE at top level.';
       return 'Calls a function at top level.';
     }

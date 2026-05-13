@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
-import {
-  analyzeWithMetrics,
-  AnalyzeFullResult,
-  AnalyzeOptions,
-  SupportedLanguage,
-} from '@codely/core';
+import { analyzeWithMetrics, AnalyzeFullResult, AnalyzeOptions, SupportedLanguage } from '@codely/core';
 import type { AnalysisMode } from '@codely/core';
 import { analyzeNativeWithMetrics, NATIVE_LANGUAGE_IDS } from './nativeAnalysis';
+import { codelyContextForDocument } from './workspaceContext';
 
 interface CacheEntry {
   version: number;
@@ -15,15 +11,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-const JS_FAMILY = new Set([
-  'javascript',
-  'typescript',
-  'javascriptreact',
-  'typescriptreact',
-  'vue',
-  'svelte',
-  'astro',
-]);
+const JS_FAMILY = new Set(['javascript', 'typescript', 'javascriptreact', 'typescriptreact', 'vue', 'svelte', 'astro']);
 
 const SUPPORTED = new Set<string>([...JS_FAMILY, ...NATIVE_LANGUAGE_IDS]);
 
@@ -52,10 +40,7 @@ function normalizeMode(raw: string): AnalysisMode {
 }
 
 /** Options derived from workspace settings and the document (language id, path). */
-export function analyzeOptionsForDocument(
-  document: vscode.TextDocument,
-  filenameOverride?: string,
-): AnalyzeOptions {
+export function analyzeOptionsForDocument(document: vscode.TextDocument, filenameOverride?: string): AnalyzeOptions {
   const cfg = vscode.workspace.getConfiguration('codely');
   const mode = normalizeMode(cfg.get<string>('mode', 'standard'));
   return {
@@ -78,11 +63,16 @@ export function getAnalysis(document: vscode.TextDocument): AnalyzeFullResult {
   const cfg = vscode.workspace.getConfiguration('codely');
   const mode = normalizeMode(cfg.get<string>('mode', 'standard'));
 
+  const { effectiveConfig } = codelyContextForDocument(document);
+
   let result: AnalyzeFullResult;
   if (NATIVE_LANGUAGE_IDS.has(document.languageId)) {
     result = analyzeNativeWithMetrics(document.getText(), document.languageId, document.fileName, mode);
   } else {
-    result = analyzeWithMetrics(document.getText(), analyzeOptionsForDocument(document));
+    result = analyzeWithMetrics(document.getText(), {
+      ...analyzeOptionsForDocument(document),
+      config: effectiveConfig,
+    });
   }
 
   cache.set(key, { version: document.version, result });

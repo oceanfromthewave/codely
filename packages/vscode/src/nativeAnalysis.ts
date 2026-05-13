@@ -29,17 +29,7 @@ export const NATIVE_LANGUAGE_IDS = new Set([
   'objective-cpp',
 ]);
 
-const NAME_BLACKLIST = new Set([
-  'if',
-  'for',
-  'while',
-  'switch',
-  'catch',
-  'with',
-  'synchronized',
-  'else',
-  'return',
-]);
+const NAME_BLACKLIST = new Set(['if', 'for', 'while', 'switch', 'catch', 'with', 'synchronized', 'else', 'return']);
 
 /** Replace comments and string literals with spaces; keep newlines so line numbers stay aligned. */
 export function maskCommentsPreserveLines(source: string, languageId: string): string {
@@ -193,7 +183,7 @@ function extractNameFromHeader(header: string, languageId: string): string | und
   const scalaDef = header.match(/\bdef\s+([A-Za-z_]\w*)\s*\(/);
   if ((languageId === 'scala' || languageId === 'groovy') && scalaDef) return scalaDef[1];
 
-  const csharp = header.match(/\b(?:async\s+)?(?:[\w<>\[\],\s.]+\s+)?(\w+)\s*\([^)]*\)\s*(?:where[^{]+)?\s*\{\s*$/);
+  const csharp = header.match(/\b(?:async\s+)?(?:[\w<>[\],\s.]+\s+)?(\w+)\s*\([^)]*\)\s*(?:where[^{]+)?\s*\{\s*$/);
   if (languageId === 'csharp' && csharp && !NAME_BLACKLIST.has(csharp[1])) return csharp[1];
 
   const javaLike =
@@ -283,7 +273,8 @@ function analyzeBody(
   if (/\bstd::cout\b/.test(body)) sideEffects.add('std::cout');
 
   const detectedPatterns: string[] = [];
-  if ((body.match(/\bswitch\b/g) ?? []).length && (body.match(/\bcase\b/g) ?? []).length >= 4) detectedPatterns.push('switch-heavy');
+  if ((body.match(/\bswitch\b/g) ?? []).length && (body.match(/\bcase\b/g) ?? []).length >= 4)
+    detectedPatterns.push('switch-heavy');
   if (/\bawait\b/.test(body)) detectedPatterns.push('async-flow');
 
   const returnPaths = (body.match(/\breturn\b/g) ?? []).length || 0;
@@ -309,7 +300,10 @@ function collectImports(source: string, languageId: string): string[] {
     const t = line.trim();
     if (languageId === 'csharp' && t.startsWith('using ')) {
       out.push(t.replace(/;+$/, ''));
-    } else if ((languageId === 'java' || languageId === 'kotlin' || languageId === 'scala' || languageId === 'groovy') && t.startsWith('import ')) {
+    } else if (
+      (languageId === 'java' || languageId === 'kotlin' || languageId === 'scala' || languageId === 'groovy') &&
+      t.startsWith('import ')
+    ) {
       out.push(t.replace(/;+$/, ''));
     } else if (
       (languageId === 'c' ||
@@ -388,11 +382,18 @@ function buildStructureNative(metrics: FileMetrics, mode: AnalysisMode): CodelyR
 function buildDataFlowNative(metrics: FileMetrics): string[] {
   const flow: string[] = [];
   if (metrics.imports.length > 0) {
-    flow.push(`Includes / imports: ${metrics.imports.slice(0, 6).join('; ')}${metrics.imports.length > 6 ? ' …' : ''}.`);
+    flow.push(
+      `Includes / imports: ${metrics.imports.slice(0, 6).join('; ')}${metrics.imports.length > 6 ? ' …' : ''}.`,
+    );
   }
   const ioFns = metrics.functions.filter((f) => f.sideEffects.length > 0);
   if (ioFns.length > 0) {
-    flow.push(`I/O or heap touches: ${ioFns.map((f) => `${f.name}→${f.sideEffects[0]}`).slice(0, 4).join('; ')}.`);
+    flow.push(
+      `I/O or heap touches: ${ioFns
+        .map((f) => `${f.name}→${f.sideEffects[0]}`)
+        .slice(0, 4)
+        .join('; ')}.`,
+    );
   }
   if (flow.length === 0) flow.push('No obvious external I/O edges detected heuristically.');
   return flow;
@@ -526,9 +527,7 @@ function buildNativeReport(
   human += `\n\n(Native ${languageId} heuristic — not a full compiler AST; treat metrics as directional, especially near macros or generated code.)`;
 
   const high_level_flow =
-    metrics.topLevelFlow.length > 0
-      ? metrics.topLevelFlow
-      : ['(no high-level flow inferred for this native buffer)'];
+    metrics.topLevelFlow.length > 0 ? metrics.topLevelFlow : ['(no high-level flow inferred for this native buffer)'];
 
   return {
     summary: empty ? 'Empty file.' : `${summary} [${languageId}]`,

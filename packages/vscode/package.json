@@ -77,6 +77,11 @@
         "command": "codely.showRawJson",
         "title": "Codely: Show Last Report as JSON",
         "category": "Codely"
+      },
+      {
+        "command": "codely.analyzeGitChanges",
+        "title": "Codely: Analyze Git Changes vs Ref…",
+        "category": "Codely"
       }
     ],
     "menus": {
@@ -121,6 +126,16 @@
           ],
           "default": "standard",
           "description": "Report depth: standard (concise), deep (full suggestions & structure list), refactor (more refactor hints), architect (module-boundary focus)."
+        },
+        "codely.analyzeWhileTyping": {
+          "type": "boolean",
+          "default": true,
+          "description": "When false, Codely refreshes on save/open/switch tab only (lighter while editing)."
+        },
+        "codely.gitCompareRef": {
+          "type": "string",
+          "default": "main",
+          "description": "Git ref passed to `git diff` for “Analyze Git Changes” (working tree + staged vs this ref)."
         }
       }
     }

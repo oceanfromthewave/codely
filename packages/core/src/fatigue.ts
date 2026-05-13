@@ -40,20 +40,28 @@ export function computeFatigue(metrics: FileMetrics): FatigueResult {
 
   if (maxTernary >= 4) {
     score += 3;
-    reasons.push(`Nested ternaries reach depth ${maxTernary} — chained \`?:\` expressions force readers to mentally walk every branch.`);
+    reasons.push(
+      `Nested ternaries reach depth ${maxTernary} — chained \`?:\` expressions force readers to mentally walk every branch.`,
+    );
   } else if (maxTernary >= 3) {
     score += 2;
-    reasons.push(`Nested ternaries (depth ${maxTernary}) compress branching into expression form — harder to scan than equivalent if/else.`);
+    reasons.push(
+      `Nested ternaries (depth ${maxTernary}) compress branching into expression form — harder to scan than equivalent if/else.`,
+    );
   } else if (maxTernary >= 2) {
     score += 1;
   }
 
   if (maxBitwise >= 8) {
     score += 2;
-    reasons.push(`Bitwise-heavy code (${maxBitwise} ops in a single function) — operators like \`<< >> & ^\` compress meaning; readers must reverse-engineer the intent.`);
+    reasons.push(
+      `Bitwise-heavy code (${maxBitwise} ops in a single function) — operators like \`<< >> & ^\` compress meaning; readers must reverse-engineer the intent.`,
+    );
   } else if (maxBitwise >= 5) {
     score += 1;
-    reasons.push(`Bitwise tricks detected (${maxBitwise} ops) — likely clever optimizations that need a comment explaining the *why*.`);
+    reasons.push(
+      `Bitwise tricks detected (${maxBitwise} ops) — likely clever optimizations that need a comment explaining the *why*.`,
+    );
   }
 
   if (maxCyclo >= 15) {
@@ -68,7 +76,12 @@ export function computeFatigue(metrics: FileMetrics): FatigueResult {
 
   if (longFns.length > 0) {
     score += Math.min(2, longFns.length);
-    reasons.push(`${longFns.length} function${longFns.length === 1 ? '' : 's'} exceed 40 lines (${longFns.map((f) => f.name).slice(0, 3).join(', ')}).`);
+    reasons.push(
+      `${longFns.length} function${longFns.length === 1 ? '' : 's'} exceed 40 lines (${longFns
+        .map((f) => f.name)
+        .slice(0, 3)
+        .join(', ')}).`,
+    );
   }
 
   if (metrics.poorlyNamedIdentifiers.length >= 3) {
@@ -80,12 +93,16 @@ export function computeFatigue(metrics: FileMetrics): FatigueResult {
 
   if (sideEffectHeavy.length > 0) {
     score += 1;
-    reasons.push(`Side effects scattered across ${sideEffectHeavy.length} function${sideEffectHeavy.length === 1 ? '' : 's'} — harder to test in isolation.`);
+    reasons.push(
+      `Side effects scattered across ${sideEffectHeavy.length} function${sideEffectHeavy.length === 1 ? '' : 's'} — harder to test in isolation.`,
+    );
   }
 
   if (metrics.globalAssignments.length > 0) {
     score += 1;
-    reasons.push(`Top-level mutations: ${metrics.globalAssignments.slice(0, 3).join(', ')}. Globals reduce locality of reasoning.`);
+    reasons.push(
+      `Top-level mutations: ${metrics.globalAssignments.slice(0, 3).join(', ')}. Globals reduce locality of reasoning.`,
+    );
   }
 
   if (metrics.todoComments.length >= 2) {
@@ -105,19 +122,27 @@ export function computeFatigue(metrics: FileMetrics): FatigueResult {
     risks.push(`${functionLabel(f)} L${f.startLine}-${f.endLine}: ${f.cyclomatic} decision points.`);
   }
   for (const f of fns.filter((x) => x.loopNesting >= 2)) {
-    risks.push(`${functionLabel(f)} L${f.startLine}-${f.endLine}: nested loops (depth ${f.loopNesting}) — potential O(n²)+ hotspot.`);
+    risks.push(
+      `${functionLabel(f)} L${f.startLine}-${f.endLine}: nested loops (depth ${f.loopNesting}) — potential O(n²)+ hotspot.`,
+    );
   }
   for (const f of awaitChains) {
-    risks.push(`${functionLabel(f)} L${f.startLine}-${f.endLine}: branching async flow — watch for unhandled rejections and ordering bugs.`);
+    risks.push(
+      `${functionLabel(f)} L${f.startLine}-${f.endLine}: branching async flow — watch for unhandled rejections and ordering bugs.`,
+    );
   }
   for (const f of fns.filter((x) => x.sideEffects.length >= 3)) {
     risks.push(`${functionLabel(f)}: ${f.sideEffects.length} side effects (${f.sideEffects.slice(0, 3).join(', ')}).`);
   }
   for (const f of ternaryHeavy) {
-    risks.push(`${functionLabel(f)} L${f.startLine}-${f.endLine}: nested ternary depth ${f.ternaryDepth} — replace with if/else or named helpers.`);
+    risks.push(
+      `${functionLabel(f)} L${f.startLine}-${f.endLine}: nested ternary depth ${f.ternaryDepth} — replace with if/else or named helpers.`,
+    );
   }
   for (const f of bitwiseHeavy) {
-    risks.push(`${functionLabel(f)} L${f.startLine}-${f.endLine}: ${f.bitwiseOps} bitwise ops — explain intent in a comment or name intermediate values.`);
+    risks.push(
+      `${functionLabel(f)} L${f.startLine}-${f.endLine}: ${f.bitwiseOps} bitwise ops — explain intent in a comment or name intermediate values.`,
+    );
   }
   if (metrics.globalAssignments.length > 0) {
     risks.push(`Top-level state mutated: ${metrics.globalAssignments.slice(0, 5).join(', ')}.`);

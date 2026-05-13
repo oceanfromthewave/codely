@@ -1,9 +1,9 @@
 import { AnalysisMode, FileMetrics, CodelyConfig } from './schema';
 
 export function generateRefactors(
-  metrics: FileMetrics, 
+  metrics: FileMetrics,
   mode: AnalysisMode = 'standard',
-  config?: CodelyConfig
+  config?: CodelyConfig,
 ): string[] {
   const suggestions: string[] = [];
   const fns = metrics.functions;
@@ -90,7 +90,12 @@ export function generateRefactors(
   const sideEffectHeavy = fns.filter((f) => f.sideEffects.length >= 2);
   if (sideEffectHeavy.length > 0) {
     suggestions.push(
-      `Push side effects (${sideEffectHeavy.map((f) => f.name).slice(0, 3).join(', ')}) to the edges — keep the core logic pure and call I/O once at the boundary so tests don't need mocks.`,
+      `Push side effects (${sideEffectHeavy
+        .map((f) => f.name)
+        .slice(0, 3)
+        .join(
+          ', ',
+        )}) to the edges — keep the core logic pure and call I/O once at the boundary so tests don't need mocks.`,
     );
   }
 
