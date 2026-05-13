@@ -107,7 +107,6 @@ export function activate(context: vscode.ExtensionContext) {
             `[${isKo ? '무시하기' : 'Ignore'}](command:codely.ignoreRefactor?${encodeURIComponent(JSON.stringify([s.id]))})`,
         ).appendMarkdown(`\n\n*${s.why}*`),
       }));
-    (refreshDecorations as any)._isMarkdown = true; // flag for testing
     editor.setDecorations(refactorDecorationType, decorations);
   };
 
@@ -157,7 +156,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('codely.previewRefactor', async (docOrUri: vscode.TextDocument | vscode.Uri, suggestion: RefactorSuggestion) => {
       const uri = docOrUri instanceof vscode.Uri ? docOrUri : docOrUri.uri;
-      const document = docOrUri instanceof vscode.Uri ? await vscode.workspace.openTextDocument(docOrUri) : docOrUri;
+      const _document = docOrUri instanceof vscode.Uri ? await vscode.workspace.openTextDocument(docOrUri) : docOrUri;
 
       if (!suggestion.refactoredCode) {
         vscode.window.showInformationMessage('Codely: refactoring code generation not yet available for this type.');

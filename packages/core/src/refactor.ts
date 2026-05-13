@@ -15,13 +15,11 @@ export function generateRefactors(
   const fns = metrics.functions;
   const thres = config?.thresholds;
 
-  const functionLengthLimit = thres?.functionLength ?? 40;
   const cyclomaticLimit = thres?.cyclomatic ?? 10;
   const depthLimit = thres?.maxDepth ?? 4;
 
   const isKo = locale === 'ko';
 
-  const longFns = fns.filter((f) => f.lengthLines > functionLengthLimit);
   const branchy = fns.filter((f) => f.cyclomatic >= cyclomaticLimit);
   const deep = fns.filter((f) => f.maxDepth >= depthLimit);
 
@@ -139,7 +137,7 @@ function labelOf(f: { name: string; ownerClass?: string }): string {
   return f.ownerClass ? `${f.ownerClass}.${f.name}` : f.name;
 }
 
-function tryGenerateGuardClause(fn: FunctionMetrics, ast: t.File, source: string, isKo: boolean) {
+function tryGenerateGuardClause(fn: FunctionMetrics, ast: t.File, _source: string, _isKo: boolean) {
   let refactored: string | null = null;
   let original: string | null = null;
 
@@ -161,7 +159,9 @@ function tryGenerateGuardClause(fn: FunctionMetrics, ast: t.File, source: string
         
         // Create a copy of the node to modify
         const newNode = t.cloneNode(path.node);
-        (newNode as any).body = t.blockStatement(newBody);
+        if ('body' in newNode && t.isBlockStatement(newNode.body)) {
+          newNode.body = t.blockStatement(newBody);
+        }
         
         refactored = generate(newNode).code;
         original = generate(path.node).code;
@@ -184,7 +184,9 @@ function findConditionalSimplifications(ast: t.File, isKo: boolean): RefactorSug
         // Double negation simplified
         const original = generate(node).code;
         const newNode = t.cloneNode(node);
-        (newNode.left as any) = (node.left.argument as t.UnaryExpression).argument;
+        if (t.isUnaryExpression(node.left) && t.isUnaryExpression(node.left.argument)) {
+          newNode.left = node.left.argument.argument as t.Expression;
+        }
         const refactored = generate(newNode).code;
         
         if (original !== refactored && path.node.loc) {
