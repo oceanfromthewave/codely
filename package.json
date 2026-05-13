@@ -1,0 +1,21 @@
+{
+  "name": "codely",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codely Code Understanding Engine — translates legacy code into structural reports humans can read in 5 minutes. Fully local, no AI API.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:core": "npm run build --workspace @codely/core",
+    "build:vscode": "npm run build --workspace codelyLab",
+    "test": "npm run test --workspace @codely/core",
+    "package:vscode": "npm run build && npm run package --workspace codelyLab",
+    "publish:vscode": "npm run publish:marketplace --workspace codelyLab",
+    "demo": "node packages/core/dist/cli.js examples/legacy.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

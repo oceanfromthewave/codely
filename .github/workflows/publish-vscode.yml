@@ -1,0 +1,62 @@
+# Push to default branch: bump codelyLab patch version, publish to VS Code Marketplace, commit version bump.
+# Requires repo secret VSCE_PAT (https://code.visualstudio.com/api/working-with-extensions/publishing-extension#create-a-publisher)
+# Commits use [skip ci] so the version bump push does not re-trigger this workflow.
+
+name: Publish VS Code extension
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: publish-vscode-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump patch version (codelyLab workspace)
+        run: npm version patch -w codelyLab --no-git-tag-version
+
+      - name: Build monorepo (core dist required for extension bundle)
+        run: npm run build
+
+      - name: Publish to VS Code Marketplace
+        working-directory: packages/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --no-dependencies --yarn false
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/vscode/package.json package-lock.json
+          if git diff --staged --quiet; then
+            echo "No version file changes to commit."
+            exit 0
+          fi
+          VERSION=$(node -p "require('./packages/vscode/package.json').version")
+          git commit -m "chore(release): codelyLab v${VERSION} [skip ci]"
+          git push

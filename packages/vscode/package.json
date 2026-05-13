@@ -1,0 +1,145 @@
+{
+  "name": "codelyLab",
+  "displayName": "codelyLab",
+  "description": "Structural code reports for JavaScript/TypeScript and common C-family / JVM languages in the editor. Fully local, no AI API.",
+  "version": "0.1.0",
+  "publisher": "codelyLab",
+  "icon": "images/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oceanfromthewave/codely.git"
+  },
+  "homepage": "https://github.com/oceanfromthewave/codely#readme",
+  "bugs": {
+    "url": "https://github.com/oceanfromthewave/codely/issues"
+  },
+  "keywords": [
+    "complexity",
+    "cyclomatic",
+    "maintainability",
+    "readability",
+    "refactor",
+    "javascript",
+    "typescript",
+    "static analysis",
+    "code quality",
+    "legacy code"
+  ],
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "files": [
+    "dist/extension.js",
+    "images",
+    "LICENSE"
+  ],
+  "vsce": {
+    "dependencies": false
+  },
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:vue",
+    "onLanguage:svelte",
+    "onLanguage:astro",
+    "onLanguage:c",
+    "onLanguage:cpp",
+    "onLanguage:cuda-cpp",
+    "onLanguage:csharp",
+    "onLanguage:java",
+    "onLanguage:kotlin",
+    "onLanguage:scala",
+    "onLanguage:groovy",
+    "onLanguage:objective-c",
+    "onLanguage:objective-cpp"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codely.analyzeFile",
+        "title": "Codely: Analyze Current File",
+        "category": "Codely"
+      },
+      {
+        "command": "codely.analyzeSelection",
+        "title": "Codely: Analyze Selection",
+        "category": "Codely"
+      },
+      {
+        "command": "codely.showRawJson",
+        "title": "Codely: Show Last Report as JSON",
+        "category": "Codely"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codely.analyzeSelection",
+          "when": "editorHasSelection && (resourceLangId == javascript || resourceLangId == typescript || resourceLangId == javascriptreact || resourceLangId == typescriptreact || resourceLangId == vue || resourceLangId == svelte || resourceLangId == astro || resourceLangId == c || resourceLangId == cpp || resourceLangId == cuda-cpp || resourceLangId == csharp || resourceLangId == java || resourceLangId == kotlin || resourceLangId == scala || resourceLangId == groovy || resourceLangId == objective-c || resourceLangId == objective-cpp)",
+          "group": "1_codely"
+        },
+        {
+          "command": "codely.analyzeFile",
+          "when": "!editorHasSelection && (resourceLangId == javascript || resourceLangId == typescript || resourceLangId == javascriptreact || resourceLangId == typescriptreact || resourceLangId == vue || resourceLangId == svelte || resourceLangId == astro || resourceLangId == c || resourceLangId == cpp || resourceLangId == cuda-cpp || resourceLangId == csharp || resourceLangId == java || resourceLangId == kotlin || resourceLangId == scala || resourceLangId == groovy || resourceLangId == objective-c || resourceLangId == objective-cpp)",
+          "group": "1_codely"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Codely",
+      "properties": {
+        "codely.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens annotations above each function with cyclomatic complexity, depth, side effects, and detected patterns."
+        },
+        "codely.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Codely findings (deep nesting, high complexity, nested loops, side effects) in the Problems panel."
+        },
+        "codely.enableStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show file-level fatigue score in the status bar."
+        },
+        "codely.mode": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "deep",
+            "refactor",
+            "architect"
+          ],
+          "default": "standard",
+          "description": "Report depth: standard (concise), deep (full suggestions & structure list), refactor (more refactor hints), architect (module-boundary focus)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js && tsc -p tsconfig.json --noEmit",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --no-dependencies",
+    "publish:marketplace": "vsce publish --no-dependencies"
+  },
+  "dependencies": {
+    "@codely/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
+  }
+}

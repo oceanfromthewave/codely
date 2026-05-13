@@ -1,0 +1,25 @@
+{
+  "name": "@codely/core",
+  "version": "0.1.0",
+  "description": "Codely analysis engine — AST-based code understanding, fully local.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "codely": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "test": "npm run build && node test/smoke.cjs"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.24.0",
+    "@babel/traverse": "^7.24.0",
+    "@babel/types": "^7.24.0"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.20.5",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}
