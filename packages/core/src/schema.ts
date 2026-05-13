@@ -28,6 +28,11 @@ export interface CodelyReport {
   human_translation: string;
 }
 
+export interface AnalyzeFullResult {
+  report: CodelyReport;
+  metrics: FileMetrics;
+}
+
 export type SupportedLanguage =
   | 'auto'
   | 'javascript'

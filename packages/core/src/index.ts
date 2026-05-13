@@ -1,5 +1,4 @@
 export { analyze, analyzeWithMetrics, perFunctionLoadScore } from './analyzer';
-export type { AnalyzeFullResult } from './analyzer';
 export { prepareSourceForAnalysis, applyLineDeltaToMetrics } from './embed';
 export type { PreparedSource } from './embed';
 export { computeComplexity } from './complexity';
@@ -11,6 +10,7 @@ export type {
   AnalysisMode,
   SupportedLanguage,
   CodelyReport,
+  AnalyzeFullResult,
   StructurePart,
   ComplexityAnalysis,
   CodeFatigueAnalysis,

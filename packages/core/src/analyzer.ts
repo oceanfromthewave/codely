@@ -6,6 +6,7 @@ import {
   AnalysisMode,
   AnalyzeOptions,
   CodelyReport,
+  AnalyzeFullResult,
   ClassMetrics,
   FileMetrics,
   FunctionMetrics,
@@ -576,11 +577,6 @@ function parseErrorReport(err: any): CodelyReport {
     human_translation:
       'The file could not be parsed by the Codely engine. If this is a non-JS/TS language, Codely v0.1 does not support it yet.',
   };
-}
-
-export interface AnalyzeFullResult {
-  report: CodelyReport;
-  metrics: FileMetrics;
 }
 
 export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): AnalyzeFullResult {
