@@ -8,35 +8,58 @@ function topPatterns(metrics: FileMetrics): string[] {
   return [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
 }
 
-export function generateSummary(metrics: FileMetrics): string {
+export function generateSummary(metrics: FileMetrics, locale: string = 'en'): string {
+  const isKo = locale === 'ko';
   const fnCount = metrics.functions.length;
   const classCount = metrics.classes.length;
   const lines = metrics.totalLines;
   const patterns = topPatterns(metrics).slice(0, 3);
 
   const parts: string[] = [];
-  if (classCount > 0 && fnCount === 0) {
-    parts.push(`A ${lines}-line file defining ${classCount} class${classCount === 1 ? '' : 'es'}.`);
-  } else if (classCount > 0) {
-    parts.push(
-      `A ${lines}-line file with ${classCount} class${classCount === 1 ? '' : 'es'} and ${fnCount} top-level function${fnCount === 1 ? '' : 's'}/method${fnCount === 1 ? '' : 's'}.`,
-    );
-  } else if (fnCount > 0) {
-    parts.push(`A ${lines}-line script with ${fnCount} function${fnCount === 1 ? '' : 's'}.`);
-  } else {
-    parts.push(`A ${lines}-line script with no function-scoped logic.`);
-  }
+  if (isKo) {
+    if (classCount > 0 && fnCount === 0) {
+      parts.push(`${lines}라인으로 구성된 파일이며, ${classCount}개의 클래스가 정의되어 있습니다.`);
+    } else if (classCount > 0) {
+      parts.push(
+        `${lines}라인으로 구성된 파일이며, ${classCount}개의 클래스와 ${fnCount}개의 함수/메서드가 포함되어 있습니다.`,
+      );
+    } else if (fnCount > 0) {
+      parts.push(`${lines}라인으로 구성된 스크립트이며, ${fnCount}개의 함수가 포함되어 있습니다.`);
+    } else {
+      parts.push(`${lines}라인으로 구성된 스크립트이며, 함수 단위 로직은 포함되어 있지 않습니다.`);
+    }
 
-  if (patterns.length > 0) {
-    parts.push(`Dominant patterns: ${patterns.join(', ')}.`);
-  }
-  if (metrics.imports.length > 0) {
-    parts.push(`Depends on ${metrics.imports.length} import${metrics.imports.length === 1 ? '' : 's'}.`);
+    if (patterns.length > 0) {
+      parts.push(`주요 패턴: ${patterns.join(', ')}.`);
+    }
+    if (metrics.imports.length > 0) {
+      parts.push(`${metrics.imports.length}개의 모듈을 임포트하고 있습니다.`);
+    }
+  } else {
+    if (classCount > 0 && fnCount === 0) {
+      parts.push(`A ${lines}-line file defining ${classCount} class${classCount === 1 ? '' : 'es'}.`);
+    } else if (classCount > 0) {
+      parts.push(
+        `A ${lines}-line file with ${classCount} class${classCount === 1 ? '' : 'es'} and ${fnCount} top-level function${fnCount === 1 ? '' : 's'}/method${fnCount === 1 ? '' : 's'}.`,
+      );
+    } else if (fnCount > 0) {
+      parts.push(`A ${lines}-line script with ${fnCount} function${fnCount === 1 ? '' : 's'}.`);
+    } else {
+      parts.push(`A ${lines}-line script with no function-scoped logic.`);
+    }
+
+    if (patterns.length > 0) {
+      parts.push(`Dominant patterns: ${patterns.join(', ')}.`);
+    }
+    if (metrics.imports.length > 0) {
+      parts.push(`Depends on ${metrics.imports.length} import${metrics.imports.length === 1 ? '' : 's'}.`);
+    }
   }
   return parts.join(' ');
 }
 
-export function generateIntent(metrics: FileMetrics): string {
+export function generateIntent(metrics: FileMetrics, locale: string = 'en'): string {
+  const isKo = locale === 'ko';
   const patterns = topPatterns(metrics);
   const hasFetcher = patterns.includes('fetcher');
   const hasParser = patterns.includes('parser');
@@ -48,112 +71,216 @@ export function generateIntent(metrics: FileMetrics): string {
 
   const guesses: string[] = [];
 
-  if (hasFetcher && hasParser) guesses.push('fetches remote data and normalizes it into a local shape');
-  else if (hasFetcher) guesses.push('coordinates an external request');
-  else if (hasParser) guesses.push('parses/normalizes structured input');
-  if (hasValidator) guesses.push('enforces preconditions before downstream code runs');
-  if (hasDispatcher) guesses.push('dispatches behavior across many discrete cases');
-  if (hasMapper) guesses.push('transforms a collection into a different shape');
-  if (hasGetterSetter && hasClasses) guesses.push('encapsulates state behind accessor methods');
+  if (isKo) {
+    if (hasFetcher && hasParser) guesses.push('원격 데이터를 가져와 로컬 형식으로 변환합니다');
+    else if (hasFetcher) guesses.push('외부 요청을 조정합니다');
+    else if (hasParser) guesses.push('구조화된 입력을 파싱하거나 정규화합니다');
+    if (hasValidator) guesses.push('후속 코드 실행 전 전제 조건을 검증합니다');
+    if (hasDispatcher) guesses.push('여러 이산적인 케이스에 따라 동작을 분기합니다');
+    if (hasMapper) guesses.push('컬렉션을 다른 형태의 데이터로 변환합니다');
+    if (hasGetterSetter && hasClasses) guesses.push('접근자 메서드를 통해 상태를 캡슐화합니다');
 
-  if (guesses.length === 0) {
-    if (hasClasses) {
-      const cls = metrics.classes[0];
-      const ext = cls.extendsName ? ` extending ${cls.extendsName}` : '';
-      guesses.push(`models a ${cls.name}${ext} with ${cls.methodCount} method${cls.methodCount === 1 ? '' : 's'}`);
-    } else if (metrics.functions.length > 0) {
-      const fn = metrics.functions[0];
-      guesses.push(`exposes ${fn.name}(${fn.params}) as its primary operation`);
-    } else {
-      guesses.push('runs a sequence of top-level statements — likely a script entry point');
+    if (guesses.length === 0) {
+      if (hasClasses) {
+        const cls = metrics.classes[0];
+        const ext = cls.extendsName ? ` (${cls.extendsName} 상속)` : '';
+        guesses.push(`${cls.name}${ext} 클래스를 정의하며, ${cls.methodCount}개의 메서드를 포함합니다`);
+      } else if (metrics.functions.length > 0) {
+        const fn = metrics.functions[0];
+        guesses.push(`${fn.name}(${fn.params}) 함수를 주요 작업으로 수행합니다`);
+      } else {
+        guesses.push('최상위 문들을 순차적으로 실행하는 스크립트 엔트리 포인트입니다');
+      }
     }
-  }
 
-  const prefix = guesses.length > 1 ? 'Likely intent: this file ' : 'Likely intent: this file ';
-  return `${prefix}${guesses.join(', and ')}.${qualifierForCertainty(metrics)}`;
+    const prefix = '추정되는 목적: 이 파일은 ';
+    return `${prefix}${guesses.join(', 그리고 ')}.${qualifierForCertainty(metrics, locale)}`;
+  } else {
+    if (hasFetcher && hasParser) guesses.push('fetches remote data and normalizes it into a local shape');
+    else if (hasFetcher) guesses.push('coordinates an external request');
+    else if (hasParser) guesses.push('parses/normalizes structured input');
+    if (hasValidator) guesses.push('enforces preconditions before downstream code runs');
+    if (hasDispatcher) guesses.push('dispatches behavior across many discrete cases');
+    if (hasMapper) guesses.push('transforms a collection into a different shape');
+    if (hasGetterSetter && hasClasses) guesses.push('encapsulates state behind accessor methods');
+
+    if (guesses.length === 0) {
+      if (hasClasses) {
+        const cls = metrics.classes[0];
+        const ext = cls.extendsName ? ` extending ${cls.extendsName}` : '';
+        guesses.push(`models a ${cls.name}${ext} with ${cls.methodCount} method${cls.methodCount === 1 ? '' : 's'}`);
+      } else if (metrics.functions.length > 0) {
+        const fn = metrics.functions[0];
+        guesses.push(`exposes ${fn.name}(${fn.params}) as its primary operation`);
+      } else {
+        guesses.push('runs a sequence of top-level statements — likely a script entry point');
+      }
+    }
+
+    const prefix = guesses.length > 1 ? 'Likely intent: this file ' : 'Likely intent: this file ';
+    return `${prefix}${guesses.join(', and ')}.${qualifierForCertainty(metrics, locale)}`;
+  }
 }
 
-function qualifierForCertainty(metrics: FileMetrics): string {
+function qualifierForCertainty(metrics: FileMetrics, locale: string = 'en'): string {
+  const isKo = locale === 'ko';
   const fnCount = metrics.functions.length;
   const totalPatterns = metrics.functions.reduce((s, f) => s + f.detectedPatterns.length, 0);
   const ratio = fnCount === 0 ? 0 : totalPatterns / fnCount;
-  if (ratio >= 1.5) return ' (high confidence — pattern density is strong)';
-  if (ratio >= 0.7) return ' (moderate confidence — verify against function names and call sites)';
-  return ' (low confidence — patterns were sparse; treat this as a starting hypothesis)';
+  
+  if (isKo) {
+    if (ratio >= 1.5) return ' (신뢰도 높음 — 패턴 밀도가 강함)';
+    if (ratio >= 0.7) return ' (신뢰도 보통 — 함수 이름과 호출부를 확인하세요)';
+    return ' (신뢰도 낮음 — 패턴이 드뭅니다. 가설로 참고하세요)';
+  } else {
+    if (ratio >= 1.5) return ' (high confidence — pattern density is strong)';
+    if (ratio >= 0.7) return ' (moderate confidence — verify against function names and call sites)';
+    return ' (low confidence — patterns were sparse; treat this as a starting hypothesis)';
+  }
 }
 
-export function translateToHuman(metrics: FileMetrics, summary: string, intent: string): string {
+export function translateToHuman(metrics: FileMetrics, summary: string, intent: string, locale: string = 'en'): string {
+  const isKo = locale === 'ko';
   const lines: string[] = [];
 
   lines.push(summary);
 
-  if (metrics.imports.length > 0) {
-    lines.push(
-      `Inputs reach the file through imports of ${metrics.imports
-        .slice(0, 4)
-        .map((s) => `'${s}'`)
-        .join(', ')}${metrics.imports.length > 4 ? ', and more' : ''}.`,
-    );
-  }
+  if (isKo) {
+    if (metrics.imports.length > 0) {
+      lines.push(
+        `${metrics.imports
+          .slice(0, 4)
+          .map((s) => `'${s}'`)
+          .join(', ')}${metrics.imports.length > 4 ? ' 등을' : '을'} 임포트하여 입력을 받습니다.`,
+      );
+    }
 
-  if (metrics.classes.length > 0) {
-    const c = metrics.classes[0];
-    const ext = c.extendsName ? ` (extends ${c.extendsName})` : '';
-    lines.push(
-      `The central type is class \`${c.name}\`${ext}, which holds ${c.methodCount} method${c.methodCount === 1 ? '' : 's'}.`,
-    );
-  }
+    if (metrics.classes.length > 0) {
+      const c = metrics.classes[0];
+      const ext = c.extendsName ? ` (${c.extendsName} 상속)` : '';
+      lines.push(
+        `핵심 타입은 \`${c.name}\`${ext} 클래스이며, ${c.methodCount}개의 메서드를 가지고 있습니다.`,
+      );
+    }
 
-  if (metrics.functions.length > 0) {
-    const named = metrics.functions.filter((f) => f.name !== '(anonymous)');
-    const headliner = named.sort((a, b) => b.lengthLines - a.lengthLines)[0] ?? metrics.functions[0];
-    lines.push(
-      `The most substantial function is \`${headliner.name}\` (${headliner.lengthLines} lines, cyclomatic ${headliner.cyclomatic}${
-        headliner.maxDepth > 1 ? `, nesting depth ${headliner.maxDepth}` : ''
-      }). ${behaviorPhrase(headliner)}`,
-    );
-  }
+    if (metrics.functions.length > 0) {
+      const named = metrics.functions.filter((f) => f.name !== '(anonymous)');
+      const headliner = named.sort((a, b) => b.lengthLines - a.lengthLines)[0] ?? metrics.functions[0];
+      lines.push(
+        `가장 비중이 큰 함수는 \`${headliner.name}\` (${headliner.lengthLines}라인, 복잡도 ${headliner.cyclomatic}${
+          headliner.maxDepth > 1 ? `, 중첩 깊이 ${headliner.maxDepth}` : ''
+        })입니다. ${behaviorPhrase(headliner, locale)}`,
+      );
+    }
 
-  lines.push(intent);
+    lines.push(intent);
 
-  const sideEffectFns = metrics.functions.filter((f) => f.sideEffects.length > 0);
-  if (sideEffectFns.length > 0) {
-    lines.push(
-      `Watch for side effects: ${sideEffectFns
-        .slice(0, 3)
-        .map((f) => `${f.name} performs ${f.sideEffects[0]}`)
-        .join('; ')}.`,
-    );
-  }
+    const sideEffectFns = metrics.functions.filter((f) => f.sideEffects.length > 0);
+    if (sideEffectFns.length > 0) {
+      lines.push(
+        `부작용(Side effects) 주의: ${sideEffectFns
+          .slice(0, 3)
+          .map((f) => `${f.name} 함수가 ${f.sideEffects[0]} 작업을 수행함`)
+          .join('; ')}.`,
+      );
+    }
 
-  if (metrics.exports.length > 0 || metrics.hasDefaultExport) {
-    const ex: string[] = [];
-    if (metrics.hasDefaultExport) ex.push('a default export');
-    if (metrics.exports.length > 0) ex.push(`named exports {${metrics.exports.slice(0, 6).join(', ')}}`);
-    lines.push(`The file exposes ${ex.join(' and ')} to the rest of the codebase.`);
+    if (metrics.exports.length > 0 || metrics.hasDefaultExport) {
+      const ex: string[] = [];
+      if (metrics.hasDefaultExport) ex.push('기본 export');
+      if (metrics.exports.length > 0) ex.push(`{${metrics.exports.slice(0, 6).join(', ')}} 등 이름이 지정된 export`);
+      lines.push(`이 파일은 ${ex.join('와 ')}를 통해 결과를 외부에 공개합니다.`);
+    } else {
+      lines.push(
+        '이 파일은 내보내는(export) 기능이 없습니다. 스크립트 실행기이거나 부작용을 통해 결과를 전달할 가능성이 큽니다.',
+      );
+    }
   } else {
-    lines.push(
-      'The file exports nothing — it is either a script entry point or its outputs are written through side effects.',
-    );
+    if (metrics.imports.length > 0) {
+      lines.push(
+        `Inputs reach the file through imports of ${metrics.imports
+          .slice(0, 4)
+          .map((s) => `'${s}'`)
+          .join(', ')}${metrics.imports.length > 4 ? ', and more' : ''}.`,
+      );
+    }
+
+    if (metrics.classes.length > 0) {
+      const c = metrics.classes[0];
+      const ext = c.extendsName ? ` (extends ${c.extendsName})` : '';
+      lines.push(
+        `The central type is class \`${c.name}\`${ext}, which holds ${c.methodCount} method${c.methodCount === 1 ? '' : 's'}.`,
+      );
+    }
+
+    if (metrics.functions.length > 0) {
+      const named = metrics.functions.filter((f) => f.name !== '(anonymous)');
+      const headliner = named.sort((a, b) => b.lengthLines - a.lengthLines)[0] ?? metrics.functions[0];
+      lines.push(
+        `The most substantial function is \`${headliner.name}\` (${headliner.lengthLines} lines, cyclomatic ${headliner.cyclomatic}${
+          headliner.maxDepth > 1 ? `, nesting depth ${headliner.maxDepth}` : ''
+        }). ${behaviorPhrase(headliner, locale)}`,
+      );
+    }
+
+    lines.push(intent);
+
+    const sideEffectFns = metrics.functions.filter((f) => f.sideEffects.length > 0);
+    if (sideEffectFns.length > 0) {
+      lines.push(
+        `Watch for side effects: ${sideEffectFns
+          .slice(0, 3)
+          .map((f) => `${f.name} performs ${f.sideEffects[0]}`)
+          .join('; ')}.`,
+      );
+    }
+
+    if (metrics.exports.length > 0 || metrics.hasDefaultExport) {
+      const ex: string[] = [];
+      if (metrics.hasDefaultExport) ex.push('a default export');
+      if (metrics.exports.length > 0) ex.push(`named exports {${metrics.exports.slice(0, 6).join(', ')}}`);
+      lines.push(`The file exposes ${ex.join(' and ')} to the rest of the codebase.`);
+    } else {
+      lines.push(
+        'The file exports nothing — it is either a script entry point or its outputs are written through side effects.',
+      );
+    }
   }
 
   return lines.join(' ');
 }
 
-function behaviorPhrase(fn: FunctionMetrics): string {
-  if (fn.detectedPatterns.includes('fetcher')) return 'It performs an external fetch and likely returns parsed data.';
-  if (fn.detectedPatterns.includes('reducer')) return 'It folds a collection into a single value.';
-  if (fn.detectedPatterns.includes('mapper')) return 'It transforms each element of an input collection.';
-  if (fn.detectedPatterns.includes('filter')) return 'It selects a subset of inputs that pass a condition.';
-  if (fn.detectedPatterns.includes('validator/guard'))
-    return 'It rejects invalid inputs up front before doing the real work.';
-  if (fn.detectedPatterns.includes('parser')) return 'It converts an input encoding into a structured form.';
-  if (fn.detectedPatterns.includes('switch-heavy'))
-    return 'It dispatches one of many behaviors based on a discriminator.';
-  if (fn.kind === 'constructor') return 'It initializes state for new instances.';
-  if (fn.cyclomatic >= 10) return 'Its many branches suggest several responsibilities are tangled together.';
-  return 'Its behavior is a mix that did not match a single known pattern.';
+function behaviorPhrase(fn: FunctionMetrics, locale: string = 'en'): string {
+  const isKo = locale === 'ko';
+  if (isKo) {
+    if (fn.detectedPatterns.includes('fetcher')) return '외부 데이터를 가져와 파싱된 데이터를 반환할 가능성이 큽니다.';
+    if (fn.detectedPatterns.includes('reducer')) return '컬렉션을 단일 값으로 집계합니다.';
+    if (fn.detectedPatterns.includes('mapper')) return '입력 컬렉션의 각 요소를 변환합니다.';
+    if (fn.detectedPatterns.includes('filter')) return '조건을 만족하는 입력의 일부를 선택합니다.';
+    if (fn.detectedPatterns.includes('validator/guard'))
+      return '실제 작업을 수행하기 전에 입력을 먼저 검증하고 거부합니다.';
+    if (fn.detectedPatterns.includes('parser')) return '입력 인코딩을 구조화된 형태로 변환합니다.';
+    if (fn.detectedPatterns.includes('switch-heavy'))
+      return '식별자에 따라 여러 동작 중 하나를 수행합니다.';
+    if (fn.kind === 'constructor') return '새 인스턴스의 상태를 초기화합니다.';
+    if (fn.cyclomatic >= 10) return '분기가 많은 것으로 보아 여러 책임이 섞여 있을 수 있습니다.';
+    return '알려진 단일 패턴과 일치하지 않는 복합적인 동작을 수행합니다.';
+  } else {
+    if (fn.detectedPatterns.includes('fetcher')) return 'It performs an external fetch and likely returns parsed data.';
+    if (fn.detectedPatterns.includes('reducer')) return 'It folds a collection into a single value.';
+    if (fn.detectedPatterns.includes('mapper')) return 'It transforms each element of an input collection.';
+    if (fn.detectedPatterns.includes('filter')) return 'It selects a subset of inputs that pass a condition.';
+    if (fn.detectedPatterns.includes('validator/guard'))
+      return 'It rejects invalid inputs up front before doing the real work.';
+    if (fn.detectedPatterns.includes('parser')) return 'It converts an input encoding into a structured form.';
+    if (fn.detectedPatterns.includes('switch-heavy'))
+      return 'It dispatches one of many behaviors based on a discriminator.';
+    if (fn.kind === 'constructor') return 'It initializes state for new instances.';
+    if (fn.cyclomatic >= 10) return 'Its many branches suggest several responsibilities are tangled together.';
+    return 'Its behavior is a mix that did not match a single known pattern.';
+  }
 }
+
 
 export function generateHtmlReport(report: CodelyReport, filename: string): string {
   const fScore = report.code_fatigue_analysis.fatigue_score;

@@ -47,7 +47,9 @@ function renderHtml(report: CodelyReport, title: string, appVersion: string): st
   const dataFlow = r.data_flow.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
   const fatigueReasons = r.code_fatigue_analysis.fatigue_reason.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
   const risks = r.code_fatigue_analysis.risk_points.map((s) => `<li class="risk">${escapeHtml(s)}</li>`).join('');
-  const refactors = r.refactoring_suggestions.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+  const refactors = r.refactoring_suggestions
+    .map((s) => `<li><strong>${escapeHtml(s.title)}</strong>: ${escapeHtml(s.description)}</li>`)
+    .join('');
 
   return `<!doctype html>
 <html lang="en">

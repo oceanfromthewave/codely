@@ -62,6 +62,7 @@ export function getAnalysis(document: vscode.TextDocument): AnalyzeFullResult {
 
   const cfg = vscode.workspace.getConfiguration('codely');
   const mode = normalizeMode(cfg.get<string>('mode', 'standard'));
+  const locale = cfg.get<string>('language', 'en');
 
   const { effectiveConfig } = codelyContextForDocument(document);
 
@@ -72,6 +73,7 @@ export function getAnalysis(document: vscode.TextDocument): AnalyzeFullResult {
     result = analyzeWithMetrics(document.getText(), {
       ...analyzeOptionsForDocument(document),
       config: effectiveConfig,
+      locale,
     });
   }
 

@@ -16,6 +16,30 @@ export interface CodeFatigueAnalysis {
   risk_points: string[];
 }
 
+export interface RefactorSuggestion {
+  id: string;
+  type:
+    | 'extract-variable'
+    | 'early-return'
+    | 'guard-clause'
+    | 'reduce-nesting'
+    | 'split-function'
+    | 'simplify-conditional'
+    | 'rename'
+    | 'other';
+  title: string;
+  description: string;
+  why: string;
+  range: {
+    startLine: number;
+    startColumn: number;
+    endLine: number;
+    endColumn: number;
+  };
+  originalCode?: string;
+  refactoredCode?: string;
+}
+
 export interface CodelyReport {
   summary: string;
   intent: string;
@@ -24,7 +48,7 @@ export interface CodelyReport {
   data_flow: string[];
   complexity_analysis: ComplexityAnalysis;
   code_fatigue_analysis: CodeFatigueAnalysis;
-  refactoring_suggestions: string[];
+  refactoring_suggestions: RefactorSuggestion[];
   human_translation: string;
 }
 
@@ -45,6 +69,8 @@ export interface AnalyzeOptions {
   languageId?: string;
   /** Custom thresholds and settings from .codelyrc */
   config?: CodelyConfig;
+  /** Locale for messages (e.g. 'en', 'ko') */
+  locale?: string;
 }
 
 /** First matching `pattern` (minimatch vs repo-relative path, `/` separators) wins. */

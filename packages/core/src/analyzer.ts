@@ -649,10 +649,10 @@ export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): Ana
   applyLineDeltaToMetrics(metrics, lineDelta);
   const complexity = computeComplexity(metrics);
   const fatigue = computeFatigue(metrics);
-  const refactors = generateRefactors(metrics, mode, opts.config);
-  const summary = generateSummary(metrics);
-  const intent = generateIntent(metrics);
-  const human = translateToHuman(metrics, summary, intent);
+  const refactors = generateRefactors(metrics, mode, opts.config, code, ast, opts.locale);
+  const summary = generateSummary(metrics, opts.locale);
+  const intent = generateIntent(metrics, opts.locale);
+  const human = translateToHuman(metrics, summary, intent, opts.locale);
 
   const high_level_flow =
     metrics.topLevelFlow.length > 0

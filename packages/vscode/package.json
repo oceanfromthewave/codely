@@ -141,6 +141,15 @@
           "type": "string",
           "default": "main",
           "description": "Git ref passed to `git diff` for “Analyze Git Changes” (working tree + staged vs this ref)."
+        },
+        "codely.language": {
+          "type": "string",
+          "enum": [
+            "en",
+            "ko"
+          ],
+          "default": "en",
+          "description": "Preferred language for Codely reports and suggestions."
         }
       }
     }

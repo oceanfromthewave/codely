@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CodelyReport, analyzeWithMetrics, analyzeProject, listGitChangedFiles } from '@codely/core';
+import { CodelyReport, analyzeWithMetrics, analyzeProject, listGitChangedFiles, RefactorSuggestion } from '@codely/core';
 import { ReportPanel } from './panel';
 import { getAnalysis, analyzeOptionsForDocument, invalidate, isSupported, clearAll } from './cache';
 import { CodelyCodeLensProvider } from './codelens';
@@ -13,6 +13,32 @@ let lastReport: CodelyReport | undefined;
 /** Per-document debounce so switching files does not cancel another file's pending refresh. */
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 
+const refactorDecorationType = vscode.window.createTextEditorDecorationType({
+  after: {
+    margin: '0 0 0 1em',
+    contentText: '💡 Codely Refactor Suggestion',
+    color: '#3b82f6',
+    fontWeight: 'bold',
+    fontStyle: 'italic',
+  },
+});
+
+const ignoredSuggestions = new Set<string>();
+
+class RefactorPreviewProvider implements vscode.TextDocumentContentProvider {
+  private _suggestions = new Map<string, string>();
+
+  setSuggestion(id: string, content: string) {
+    this._suggestions.set(id, content);
+  }
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return this._suggestions.get(uri.query) ?? '';
+  }
+}
+
+const previewProvider = new RefactorPreviewProvider();
+
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('Codely');
   context.subscriptions.push(output);
@@ -20,6 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
   const codelens = new CodelyCodeLensProvider();
   const diagnosticCollection = getCollection();
   context.subscriptions.push(diagnosticCollection);
+
+  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('codely-refactor', previewProvider));
 
   const selector: vscode.DocumentSelector = [
     { language: 'javascript', scheme: 'file' },
@@ -63,10 +91,32 @@ export function activate(context: vscode.ExtensionContext) {
 
   const refreshStatus = setupStatusBar(context);
 
+  const refreshDecorations = (editor: vscode.TextEditor) => {
+    if (!isSupported(editor.document)) return;
+    const { report } = getAnalysis(editor.document);
+    const locale = vscode.workspace.getConfiguration('codely').get<string>('language', 'en');
+    const isKo = locale === 'ko';
+
+    const decorations: vscode.DecorationOptions[] = report.refactoring_suggestions
+      .filter((s) => !ignoredSuggestions.has(s.id))
+      .map((s) => ({
+        range: new vscode.Range(s.range.startLine - 1, 0, s.range.startLine - 1, 0),
+        hoverMessage: new vscode.MarkdownString(
+          `### 💡 ${s.title}\n\n${s.description}\n\n---\n\n` +
+            `[${isKo ? '미리보기' : 'Preview Refactor'}](command:codely.previewRefactor?${encodeURIComponent(JSON.stringify([editor.document.uri, s]))}) | ` +
+            `[${isKo ? '무시하기' : 'Ignore'}](command:codely.ignoreRefactor?${encodeURIComponent(JSON.stringify([s.id]))})`,
+        ).appendMarkdown(`\n\n*${s.why}*`),
+      }));
+    (refreshDecorations as any)._isMarkdown = true; // flag for testing
+    editor.setDecorations(refactorDecorationType, decorations);
+  };
+
   const refresh = (doc: vscode.TextDocument | undefined) => {
     if (!doc || !isSupported(doc)) return;
     try {
       refreshDiagnostics(doc);
+      const editor = vscode.window.visibleTextEditors.find((e) => e.document === doc);
+      if (editor) refreshDecorations(editor);
     } catch (err: unknown) {
       output.appendLine(
         `[Codely diagnostics error] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`,
@@ -105,6 +155,45 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('codely.previewRefactor', async (docOrUri: vscode.TextDocument | vscode.Uri, suggestion: RefactorSuggestion) => {
+      const uri = docOrUri instanceof vscode.Uri ? docOrUri : docOrUri.uri;
+      const document = docOrUri instanceof vscode.Uri ? await vscode.workspace.openTextDocument(docOrUri) : docOrUri;
+
+      if (!suggestion.refactoredCode) {
+        vscode.window.showInformationMessage('Codely: refactoring code generation not yet available for this type.');
+        return;
+      }
+      previewProvider.setSuggestion(suggestion.id, suggestion.refactoredCode);
+      const previewUri = vscode.Uri.parse(`codely-refactor:${uri.path}?${suggestion.id}`);
+      await vscode.commands.executeCommand('vscode.diff', uri, previewUri, `Codely Refactor: ${suggestion.title}`);
+    }),
+
+    vscode.commands.registerCommand('codely.ignoreRefactor', (id: string) => {
+      ignoredSuggestions.add(id);
+      const editor = vscode.window.activeTextEditor;
+      if (editor) refreshDecorations(editor);
+    }),
+
+    vscode.commands.registerCommand('codely.applyRefactor', async (document: vscode.TextDocument, suggestion: RefactorSuggestion) => {
+      if (!suggestion.refactoredCode) return;
+      const edit = new vscode.WorkspaceEdit();
+      const range = new vscode.Range(
+        suggestion.range.startLine - 1,
+        suggestion.range.startColumn - 1,
+        suggestion.range.endLine - 1,
+        suggestion.range.endColumn - 1,
+      );
+      edit.replace(document.uri, range, suggestion.refactoredCode);
+      const success = await vscode.workspace.applyEdit(edit);
+      if (success) {
+        vscode.window.showInformationMessage(`Codely: Applied refactor "${suggestion.title}"`);
+      }
+    }),
+
+    vscode.commands.registerCommand('codely.explainRefactor', (suggestion: RefactorSuggestion) => {
+      vscode.window.showInformationMessage(`${suggestion.title}\n\n${suggestion.why}`, { modal: true });
+    }),
+
     vscode.commands.registerCommand('codely.analyzeFile', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
@@ -130,11 +219,13 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const baseOpts = analyzeOptionsForDocument(editor.document);
         const { effectiveConfig } = codelyContextForDocument(editor.document);
+        const locale = vscode.workspace.getConfiguration('codely').get<string>('language', 'en');
         const { report: selReport } = analyzeWithMetrics(text, {
           ...baseOpts,
           filename: editor.document.fileName,
           languageId: undefined,
           config: effectiveConfig,
+          locale,
         });
         lastReport = selReport;
         ReportPanel.showOrUpdate(context.extensionUri, selReport, title, appVersion);

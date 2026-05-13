@@ -31,4 +31,5 @@ export type {
   ClassMetrics,
   CodelyConfig,
   CodelyPathOverride,
+  RefactorSuggestion,
 } from './schema';

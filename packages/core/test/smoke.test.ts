@@ -31,7 +31,7 @@ describe('analyzeWithMetrics', () => {
       { filename: 'big-imports.ts', mode: 'architect' },
     );
     expect(
-      architect.report.refactoring_suggestions.some((s) => s.includes('dependencies') || s.includes('imports')),
+      architect.report.refactoring_suggestions.some((s) => s.id.includes('dependencies') || s.id.includes('imports')),
     ).toBe(true);
   });
 
