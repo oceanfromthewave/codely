@@ -154,14 +154,30 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('codely.previewRefactor', async (docOrUri: vscode.TextDocument | vscode.Uri, suggestion: RefactorSuggestion) => {
-      const uri = docOrUri instanceof vscode.Uri ? docOrUri : docOrUri.uri;
-      const _document = docOrUri instanceof vscode.Uri ? await vscode.workspace.openTextDocument(docOrUri) : docOrUri;
+    vscode.commands.registerCommand('codely.previewRefactor', async (arg1: any, arg2?: any) => {
+      let uri: vscode.Uri;
+      let suggestion: RefactorSuggestion;
 
-      if (!suggestion.refactoredCode) {
-        vscode.window.showInformationMessage('Codely: refactoring code generation not yet available for this type.');
+      if (arg1 instanceof vscode.Uri && arg2) {
+        uri = arg1;
+        suggestion = arg2;
+      } else if (arg1 && arg1.uri && arg1.suggestion) {
+        // Handle case where args are wrapped in an object
+        uri = vscode.Uri.parse(arg1.uri);
+        suggestion = arg1.suggestion;
+      } else {
+        // Fallback or attempt to parse from active editor
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+        uri = editor.document.uri;
+        suggestion = arg1; // Assume arg1 is the suggestion
+      }
+
+      if (!suggestion || !suggestion.refactoredCode) {
+        vscode.window.showInformationMessage('Codely: Refactoring preview is not available for this item.');
         return;
       }
+
       previewProvider.setSuggestion(suggestion.id, suggestion.refactoredCode);
       const previewUri = vscode.Uri.parse(`codely-refactor:${uri.path}?${suggestion.id}`);
       await vscode.commands.executeCommand('vscode.diff', uri, previewUri, `Codely Refactor: ${suggestion.title}`);
