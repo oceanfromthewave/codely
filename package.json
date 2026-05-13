@@ -19,7 +19,7 @@
     "demo": "node packages/core/dist/cli.js examples/legacy.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

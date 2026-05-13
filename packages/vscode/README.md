@@ -34,7 +34,7 @@ CLI does **not** run this path (extension-only).
 
 ### Requirements
 
-- Node.js **≥ 18** (for CLI / monorepo build).
+- Node.js **≥ 20** (for CLI / monorepo build and Vitest; CI uses Node 20).
 - VS Code **≥ 1.80**.
 
 ### Monorepo layout
@@ -133,7 +133,7 @@ VS Code에서 다음 언어 ID로 활성화됩니다: **JavaScript**, **TypeScri
 
 ### 요구 사항
 
-- Node.js **18 이상** (CLI 및 모노레포 빌드).
+- Node.js **20 이상** (CLI·모노레포 빌드 및 Vitest; CI는 Node 20).
 - VS Code **1.80 이상**.
 
 ### 모노레포 구성

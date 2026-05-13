@@ -34,7 +34,7 @@
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
+- **Node.js** ≥ 20 (Vitest 4 and the toolchain require `util.styleText`, available from Node 20 onward.)
 - **VS Code** ≥ 1.80 (for the extension)
 
 ### Install and build
@@ -182,7 +182,7 @@ Codely는 JavaScript/TypeScript 등을 분석해 **복잡도, 중첩, 피로도,
 
 ### 요구 사항
 
-- **Node.js** 18 이상
+- **Node.js** 20 이상 (Vitest 4 등이 Node 20의 `util.styleText`에 의존합니다.)
 - **VS Code** 1.80 이상 (확장 사용 시)
 
 ### 설치 및 빌드
