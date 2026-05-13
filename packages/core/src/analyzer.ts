@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { parse } from '@babel/parser';
 import traverse, { NodePath } from '@babel/traverse';
 import * as t from '@babel/types';
@@ -16,6 +17,7 @@ import { generateRefactors } from './refactor';
 import { translateToHuman, generateIntent, generateSummary } from './translate';
 import { describeTopLevelStatement, isPoorName } from './naming';
 import { applyLineDeltaToMetrics, prepareSourceForAnalysis } from './embed';
+import { analyzeNativeWithMetrics, NATIVE_LANGUAGE_IDS } from './native';
 
 const POOR_NAME_EXCEPT = new Set(['i', 'j', 'k', 'x', 'y', 'z', 'e', '_', 't']);
 
@@ -273,6 +275,7 @@ function analyzeFunction(path: NodePath<t.Function>, ownerClass?: string): Funct
   const detectedPatterns = detectPatterns(path);
   if (maxTernaryDepth >= 3) detectedPatterns.push('nested-ternary');
   if (bitwiseOps >= 5) detectedPatterns.push('bitwise-heavy');
+  if (node.params.length >= 4) detectedPatterns.push('long-params');
 
   return {
     name: functionName(path),
@@ -588,16 +591,28 @@ export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): Ana
   const lineDelta = prep.lineDelta;
 
   const language = opts.language ?? 'auto';
+  const mode = opts.mode ?? 'standard';
+
+  // Check if it's a native language supported by heuristic engine
+  const ext = path.extname(filenameForParser).toLowerCase().slice(1);
+  const langId = opts.languageId ?? ext;
+  if (NATIVE_LANGUAGE_IDS.has(langId)) {
+    return analyzeNativeWithMetrics(code, langId, filenameForParser, mode);
+  }
+
   const plugins = pickPlugins(language, filenameForParser);
 
   let ast: t.File;
   try {
     ast = tryParse(code, plugins);
   } catch (err: any) {
+    // If Babel fails, try native heuristic as a fallback if it looks like a supported extension
+    if (NATIVE_LANGUAGE_IDS.has(langId)) {
+        return analyzeNativeWithMetrics(code, langId, filenameForParser, mode);
+    }
     return { report: parseErrorReport(err), metrics: emptyMetrics(code) };
   }
 
-  const mode = opts.mode ?? 'standard';
   const metrics = collectFileMetrics(ast, code);
   applyLineDeltaToMetrics(metrics, lineDelta);
   const complexity = computeComplexity(metrics);

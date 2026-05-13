@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { analyze } from './analyzer';
+import { analyze, analyzeWithMetrics } from './analyzer';
+import { analyzeProject, ProjectSummary } from './project';
+import { generateHtmlReport } from './translate';
 
 function usage() {
-  console.error('Usage: codely <file> [--json]');
+  console.error('Usage: codely <file_or_directory> [--json] [--html <out.html>]');
   process.exit(2);
 }
 
@@ -22,27 +24,76 @@ function paint(s: string, color: 'red' | 'yellow' | 'green' | 'cyan' | 'gray' | 
 }
 
 function bar(score: number, width = 10): string {
-  const filled = Math.round((score / 10) * width);
+  const filled = Math.min(width, Math.round((score / 10) * width));
   return '█'.repeat(filled) + '░'.repeat(width - filled);
+}
+
+function printProjectSummary(summary: ProjectSummary) {
+  console.log();
+  console.log(paint('  Codely Project Summary  ', 'bold'));
+  console.log(paint('  ────────────────────────────────────────', 'gray'));
+  console.log(`  Files:           ${summary.totalFiles}`);
+  console.log(`  Lines of Code:   ${summary.totalLines}`);
+  console.log(`  Total Functions: ${summary.totalFunctions}`);
+  console.log(`  Avg Readability: ${summary.averageReadability.toFixed(1)}/10`);
+  console.log(`  Avg Maintainability: ${summary.averageMaintainability.toFixed(1)}/10`);
+  console.log();
+
+  console.log(paint('  Top 10 Hotspots (Most Complex Functions)', 'bold'));
+  for (const h of summary.hotspots) {
+    const color = h.score >= 7 ? 'red' : h.score >= 4 ? 'yellow' : 'cyan';
+    console.log(`    ${paint(bar(h.score, 5), color)} ${paint(h.name, 'bold')} ${paint('(' + h.file + ':' + h.line + ')', 'gray')}`);
+    console.log(`      Score: ${h.score}, Cyclomatic: ${h.cyclomatic}, Lines: ${h.length}`);
+  }
+  console.log();
+
+  console.log(paint('  Files with Highest Fatigue', 'bold'));
+  for (const f of summary.fileScores) {
+    const color = f.fatigue >= 7 ? 'red' : f.fatigue >= 4 ? 'yellow' : 'green';
+    console.log(`    ${paint(bar(f.fatigue, 5), color)} ${f.fatigue}/10 - ${f.file}`);
+  }
+  console.log();
 }
 
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) usage();
-  const filename = args[0];
+  const inputPath = args[0];
   const wantsJson = args.includes('--json');
+  const htmlIdx = args.indexOf('--html');
+  const htmlPath = htmlIdx >= 0 ? args[htmlIdx + 1] : undefined;
 
-  if (!fs.existsSync(filename)) {
-    console.error(`File not found: ${filename}`);
+  if (!fs.existsSync(inputPath)) {
+    console.error(`Path not found: ${inputPath}`);
     process.exit(1);
   }
 
+  const stats = fs.statSync(inputPath);
+  if (stats.isDirectory()) {
+    const summary = analyzeProject(inputPath);
+    if (wantsJson) {
+      process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
+    } else {
+      printProjectSummary(summary);
+    }
+    return;
+  }
+
+  const filename = inputPath;
   const code = fs.readFileSync(filename, 'utf8');
   const abs = path.resolve(filename);
   const ext = path.extname(abs).toLowerCase();
   const languageId =
     ext === '.vue' ? 'vue' : ext === '.svelte' ? 'svelte' : ext === '.astro' ? 'astro' : undefined;
-  const report = analyze(code, { filename: path.basename(filename), languageId });
+  
+  const { report, metrics } = analyzeWithMetrics(code, { filename: path.basename(filename), languageId });
+
+  if (htmlPath) {
+    const html = generateHtmlReport(report, filename);
+    fs.writeFileSync(htmlPath, html);
+    console.log(`Report saved to ${htmlPath}`);
+    return;
+  }
 
   if (wantsJson) {
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');

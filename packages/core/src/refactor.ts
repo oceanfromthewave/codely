@@ -11,6 +11,7 @@ export function generateRefactors(metrics: FileMetrics, mode: AnalysisMode = 'st
   const nestedLoops = fns.filter((f) => f.loopNesting >= 2);
   const ternaryChains = fns.filter((f) => f.ternaryDepth >= 3);
   const bitwiseTricks = fns.filter((f) => f.bitwiseOps >= 5);
+  const longParams = fns.filter((f) => f.detectedPatterns.includes('long-params'));
 
   for (const f of branchy) {
     suggestions.push(
@@ -45,6 +46,11 @@ export function generateRefactors(metrics: FileMetrics, mode: AnalysisMode = 'st
   for (const f of bitwiseTricks) {
     suggestions.push(
       `${labelOf(f)} relies on ${f.bitwiseOps} bitwise operations — if this is intentional (hashing, flags, fast math), add a one-line comment explaining the trick. If not, replace with arithmetic that names the intent.`,
+    );
+  }
+  for (const f of longParams) {
+    suggestions.push(
+      `${labelOf(f)} takes ${f.params} parameters — consider grouping related arguments into a single "options" object (destructuring) to make call sites more readable and order-independent.`,
     );
   }
 
