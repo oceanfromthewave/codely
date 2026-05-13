@@ -2,7 +2,7 @@
   "name": "codelyLab",
   "displayName": "codelyLab",
   "description": "Structural code reports for JavaScript/TypeScript and common C-family / JVM languages in the editor. Fully local, no AI API.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "codelyLab",
   "icon": "images/icon.png",
   "license": "MIT",
