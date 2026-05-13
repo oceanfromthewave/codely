@@ -48,6 +48,32 @@ export interface AnalyzeOptions {
   filename?: string;
   /** Editor language id (e.g. `vue`, `svelte`, `astro`) — enables embedded script extraction in the core. */
   languageId?: string;
+  /** Custom thresholds and settings from .codelyrc */
+  config?: CodelyConfig;
+}
+
+export interface CodelyConfig {
+  thresholds?: {
+    cyclomatic?: number;
+    maxDepth?: number;
+    functionLength?: number;
+    fatigueScore?: number;
+  };
+  exclude?: string[];
+  history?: {
+    enabled: boolean;
+    maxEntries: number;
+  };
+}
+
+export interface ProjectHistory {
+  lastAnalyzed: string;
+  files: Record<string, {
+    fatigue: number;
+    readability: number;
+    maintainability: number;
+    timestamp: string;
+  }>;
 }
 
 export interface FunctionMetrics {

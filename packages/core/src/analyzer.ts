@@ -613,7 +613,7 @@ export function analyzeWithMetrics(code: string, opts: AnalyzeOptions = {}): Ana
   applyLineDeltaToMetrics(metrics, lineDelta);
   const complexity = computeComplexity(metrics);
   const fatigue = computeFatigue(metrics);
-  const refactors = generateRefactors(metrics, mode);
+  const refactors = generateRefactors(metrics, mode, opts.config);
   const summary = generateSummary(metrics);
   const intent = generateIntent(metrics);
   const human = translateToHuman(metrics, summary, intent);

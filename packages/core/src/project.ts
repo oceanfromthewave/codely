@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { analyzeWithMetrics, perFunctionLoadScore } from './analyzer';
-import { FileMetrics, FunctionMetrics, CodelyReport } from './schema';
+import { FileMetrics, FunctionMetrics, CodelyReport, ProjectHistory, CodelyConfig } from './schema';
+import { loadConfig } from './config';
 
 export interface ProjectHotspot {
   file: string;
@@ -19,7 +20,8 @@ export interface ProjectSummary {
   averageReadability: number;
   averageMaintainability: number;
   hotspots: ProjectHotspot[];
-  fileScores: { file: string; fatigue: number }[];
+  fileScores: { file: string; fatigue: number; delta?: number }[];
+  historyPath?: string;
 }
 
 const SUPPORTED_EXTENSIONS = new Set([
@@ -28,10 +30,11 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.c', '.cpp', '.h', '.hpp', '.cs', '.java', '.kt', '.scala', '.groovy', '.m', '.mm'
 ]);
 
-const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.vscode', 'coverage']);
-
 export function analyzeProject(dirPath: string): ProjectSummary {
-  const files = getAllFiles(dirPath);
+  const config = loadConfig(dirPath);
+  const ignoreDirs = new Set(config.exclude || ['node_modules', 'dist', 'build', '.git']);
+  
+  const files = getAllFiles(dirPath, [], ignoreDirs);
   let totalLines = 0;
   let totalFunctions = 0;
   let sumReadability = 0;
@@ -39,27 +42,28 @@ export function analyzeProject(dirPath: string): ProjectSummary {
   let analyzedCount = 0;
 
   const allFunctions: ProjectHotspot[] = [];
-  const fileScores: { file: string; fatigue: number }[] = [];
+  const fileScores: { file: string; fatigue: number; delta?: number }[] = [];
+
+  const history = loadHistory(dirPath);
+  const newHistory: ProjectHistory = {
+    lastAnalyzed: new Date().toISOString(),
+    files: {}
+  };
 
   for (const file of files) {
     const code = fs.readFileSync(file, 'utf8');
     const relPath = path.relative(dirPath, file);
     const ext = path.extname(file).toLowerCase();
     
-    // Simple mapping for embedded languages
     let languageId: string | undefined;
     if (ext === '.vue') languageId = 'vue';
     else if (ext === '.svelte') languageId = 'svelte';
     else if (ext === '.astro') languageId = 'astro';
 
-    // Note: analyzeWithMetrics in analyzer.ts handles both JS/TS (Babel) and Native (Heuristic) 
-    // IF we are in the VS Code extension. However, core's analyzer.ts only has JS/TS logic.
-    // The native heuristic is in packages/vscode/src/nativeAnalysis.ts.
-    // We should probably move nativeAnalysis.ts to core if we want the CLI to support it.
-    
     const { report, metrics } = analyzeWithMetrics(code, { 
       filename: path.basename(file), 
-      languageId 
+      languageId,
+      config
     });
 
     if (metrics.totalLines > 0) {
@@ -69,7 +73,19 @@ export function analyzeProject(dirPath: string): ProjectSummary {
       sumReadability += report.complexity_analysis.readability_score;
       sumMaintainability += report.complexity_analysis.maintainability_score;
       
-      fileScores.push({ file: relPath, fatigue: report.code_fatigue_analysis.fatigue_score });
+      let delta: number | undefined;
+      if (history.files[relPath]) {
+        delta = report.code_fatigue_analysis.fatigue_score - history.files[relPath].fatigue;
+      }
+
+      fileScores.push({ file: relPath, fatigue: report.code_fatigue_analysis.fatigue_score, delta });
+
+      newHistory.files[relPath] = {
+        fatigue: report.code_fatigue_analysis.fatigue_score,
+        readability: report.complexity_analysis.readability_score,
+        maintainability: report.complexity_analysis.maintainability_score,
+        timestamp: newHistory.lastAnalyzed
+      };
 
       for (const fn of metrics.functions) {
         allFunctions.push({
@@ -82,6 +98,10 @@ export function analyzeProject(dirPath: string): ProjectSummary {
         });
       }
     }
+  }
+
+  if (config.history?.enabled) {
+    saveHistory(dirPath, newHistory);
   }
 
   const hotspots = allFunctions
@@ -99,13 +119,13 @@ export function analyzeProject(dirPath: string): ProjectSummary {
   };
 }
 
-function getAllFiles(dir: string, fileList: string[] = []): string[] {
+function getAllFiles(dir: string, fileList: string[], ignoreDirs: Set<string>): string[] {
   const files = fs.readdirSync(dir);
   for (const file of files) {
     const name = path.join(dir, file);
     if (fs.statSync(name).isDirectory()) {
-      if (!IGNORE_DIRS.has(file)) {
-        getAllFiles(name, fileList);
+      if (!ignoreDirs.has(file)) {
+        getAllFiles(name, fileList, ignoreDirs);
       }
     } else {
       const ext = path.extname(file).toLowerCase();
@@ -115,4 +135,20 @@ function getAllFiles(dir: string, fileList: string[] = []): string[] {
     }
   }
   return fileList;
+}
+
+function loadHistory(rootPath: string): ProjectHistory {
+  const historyPath = path.join(rootPath, '.codely', 'history.json');
+  if (fs.existsSync(historyPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+    } catch (e) {}
+  }
+  return { lastAnalyzed: '', files: {} };
+}
+
+function saveHistory(rootPath: string, history: ProjectHistory) {
+  const dir = path.join(rootPath, '.codely');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'history.json'), JSON.stringify(history, null, 2));
 }

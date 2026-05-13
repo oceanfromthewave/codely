@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
+import * as readline from 'readline';
 import { analyze, analyzeWithMetrics } from './analyzer';
 import { analyzeProject, ProjectSummary } from './project';
 import { generateHtmlReport } from './translate';
+import { loadConfig } from './config';
 
 function usage() {
-  console.error('Usage: codely <file_or_directory> [--json] [--html <out.html>]');
+  console.error('Usage: codely <file_or_directory> [--json] [--html <out.html>] [--fix]');
   process.exit(2);
 }
 
@@ -24,7 +26,7 @@ function paint(s: string, color: 'red' | 'yellow' | 'green' | 'cyan' | 'gray' | 
 }
 
 function bar(score: number, width = 10): string {
-  const filled = Math.min(width, Math.round((score / 10) * width));
+  const filled = Math.min(width, Math.max(0, Math.round((score / 10) * width)));
   return '█'.repeat(filled) + '░'.repeat(width - filled);
 }
 
@@ -50,16 +52,35 @@ function printProjectSummary(summary: ProjectSummary) {
   console.log(paint('  Files with Highest Fatigue', 'bold'));
   for (const f of summary.fileScores) {
     const color = f.fatigue >= 7 ? 'red' : f.fatigue >= 4 ? 'yellow' : 'green';
-    console.log(`    ${paint(bar(f.fatigue, 5), color)} ${f.fatigue}/10 - ${f.file}`);
+    let deltaStr = '';
+    if (f.delta !== undefined && f.delta !== 0) {
+      const dColor = f.delta > 0 ? 'red' : 'green';
+      deltaStr = paint(` (${f.delta > 0 ? '+' : ''}${f.delta.toFixed(1)})`, dColor);
+    }
+    console.log(`    ${paint(bar(f.fatigue, 5), color)} ${f.fatigue}/10${deltaStr} - ${f.file}`);
   }
   console.log();
 }
 
-function main() {
+async function ask(question: string): Promise<boolean> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  return new Promise((resolve) => {
+    rl.question(paint(`  ? ${question} (y/N): `, 'cyan'), (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === 'y');
+    });
+  });
+}
+
+async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) usage();
   const inputPath = args[0];
   const wantsJson = args.includes('--json');
+  const wantsFix = args.includes('--fix');
   const htmlIdx = args.indexOf('--html');
   const htmlPath = htmlIdx >= 0 ? args[htmlIdx + 1] : undefined;
 
@@ -67,6 +88,9 @@ function main() {
     console.error(`Path not found: ${inputPath}`);
     process.exit(1);
   }
+
+  const rootDir = fs.statSync(inputPath).isDirectory() ? inputPath : path.dirname(inputPath);
+  const config = loadConfig(rootDir);
 
   const stats = fs.statSync(inputPath);
   if (stats.isDirectory()) {
@@ -86,7 +110,11 @@ function main() {
   const languageId =
     ext === '.vue' ? 'vue' : ext === '.svelte' ? 'svelte' : ext === '.astro' ? 'astro' : undefined;
   
-  const { report, metrics } = analyzeWithMetrics(code, { filename: path.basename(filename), languageId });
+  const { report, metrics } = analyzeWithMetrics(code, { 
+    filename: path.basename(filename), 
+    languageId,
+    config
+  });
 
   if (htmlPath) {
     const html = generateHtmlReport(report, filename);
@@ -147,6 +175,16 @@ function main() {
   console.log(paint('  Human translation', 'bold'));
   console.log('    ' + report.human_translation);
   console.log();
+
+  if (wantsFix && metrics.magicNumbers > 0) {
+    const shouldFix = await ask(`Found ${metrics.magicNumbers} magic numbers. Extract to constants?`);
+    if (shouldFix) {
+      const { fixMagicNumbers } = require('./fixer');
+      const fixedCode = fixMagicNumbers(code);
+      fs.writeFileSync(filename, fixedCode);
+      console.log(paint('    ✓ Fixed magic numbers and updated file.', 'green'));
+    }
+  }
 }
 
 main();

@@ -1,12 +1,21 @@
-import { AnalysisMode, FileMetrics } from './schema';
+import { AnalysisMode, FileMetrics, CodelyConfig } from './schema';
 
-export function generateRefactors(metrics: FileMetrics, mode: AnalysisMode = 'standard'): string[] {
+export function generateRefactors(
+  metrics: FileMetrics, 
+  mode: AnalysisMode = 'standard',
+  config?: CodelyConfig
+): string[] {
   const suggestions: string[] = [];
   const fns = metrics.functions;
+  const thres = config?.thresholds;
 
-  const longFns = fns.filter((f) => f.lengthLines > 40);
-  const branchy = fns.filter((f) => f.cyclomatic >= 10);
-  const deep = fns.filter((f) => f.maxDepth >= 4);
+  const functionLengthLimit = thres?.functionLength ?? 40;
+  const cyclomaticLimit = thres?.cyclomatic ?? 10;
+  const depthLimit = thres?.maxDepth ?? 4;
+
+  const longFns = fns.filter((f) => f.lengthLines > functionLengthLimit);
+  const branchy = fns.filter((f) => f.cyclomatic >= cyclomaticLimit);
+  const deep = fns.filter((f) => f.maxDepth >= depthLimit);
   const switchHeavy = fns.filter((f) => f.detectedPatterns.includes('switch-heavy'));
   const nestedLoops = fns.filter((f) => f.loopNesting >= 2);
   const ternaryChains = fns.filter((f) => f.ternaryDepth >= 3);
