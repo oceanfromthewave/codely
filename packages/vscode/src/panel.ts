@@ -27,7 +27,7 @@ function bar(score: number, lowIsGood = false): string {
   `;
 }
 
-function renderHtml(report: CodelyReport, title: string): string {
+function renderHtml(report: CodelyReport, title: string, appVersion: string): string {
   const r = report;
   const structure = r.structure_breakdown
     .map(
@@ -193,7 +193,7 @@ function renderHtml(report: CodelyReport, title: string): string {
       <div class="title-meta">${escapeHtml(title)}</div>
     </div>
     <div>
-      <span class="badge">v0.1</span>
+      <span class="badge">v${escapeHtml(appVersion)}</span>
       <span class="badge">local-only</span>
     </div>
   </div>
@@ -239,7 +239,7 @@ function renderHtml(report: CodelyReport, title: string): string {
   <p class="prose">${escapeHtml(r.human_translation)}</p>
 
   <div class="footer-note">
-    Codely v0.1 — fully local AST analysis. No code is sent over the network.
+    Codely v${escapeHtml(appVersion)} — fully local AST analysis. No code is sent over the network.
     Patterns and intent are inferred heuristically; treat them as starting hypotheses, not ground truth.
   </div>
 </body>
@@ -257,10 +257,10 @@ export class ReportPanel {
     });
   }
 
-  static showOrUpdate(_extensionUri: vscode.Uri, report: CodelyReport, title: string) {
+  static showOrUpdate(_extensionUri: vscode.Uri, report: CodelyReport, title: string, appVersion: string) {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
     if (ReportPanel.current) {
-      ReportPanel.current.panel.webview.html = renderHtml(report, title);
+      ReportPanel.current.panel.webview.html = renderHtml(report, title, appVersion);
       ReportPanel.current.panel.title = `Codely: ${shortenTitle(title)}`;
       ReportPanel.current.panel.reveal(column, true);
       return;
@@ -271,7 +271,7 @@ export class ReportPanel {
       { viewColumn: column, preserveFocus: true },
       { enableScripts: false, retainContextWhenHidden: true },
     );
-    panel.webview.html = renderHtml(report, title);
+    panel.webview.html = renderHtml(report, title, appVersion);
     ReportPanel.current = new ReportPanel(panel);
   }
 

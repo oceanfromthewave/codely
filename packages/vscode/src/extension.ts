@@ -7,10 +7,13 @@ import { refreshDiagnostics, getCollection, clear as clearDiag } from './diagnos
 import { setupStatusBar } from './statusbar';
 
 let lastReport: CodelyReport | undefined;
-let debounceTimer: NodeJS.Timeout | undefined;
+/** Per-document debounce so switching files does not cancel another file's pending refresh. */
+const debounceTimers = new Map<string, NodeJS.Timeout>();
 
 export function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel('Codely');
+  context.subscriptions.push(output);
+  const appVersion = String((context.extension.packageJSON as { version?: string }).version ?? '0.0.0');
   const codelens = new CodelyCodeLensProvider();
   const diagnosticCollection = getCollection();
   context.subscriptions.push(diagnosticCollection);
@@ -69,8 +72,14 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   const debouncedRefresh = (doc: vscode.TextDocument) => {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => refresh(doc), 400);
+    const key = doc.uri.toString();
+    const prev = debounceTimers.get(key);
+    if (prev) clearTimeout(prev);
+    const t = setTimeout(() => {
+      debounceTimers.delete(key);
+      refresh(doc);
+    }, 400);
+    debounceTimers.set(key, t);
   };
 
   const showReport = (editor: vscode.TextEditor) => {
@@ -82,7 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       const { report } = getAnalysis(editor.document);
       lastReport = report;
-      ReportPanel.showOrUpdate(context.extensionUri, report, editor.document.fileName);
+      ReportPanel.showOrUpdate(context.extensionUri, report, editor.document.fileName, appVersion);
     } catch (err: any) {
       output.appendLine(`[Codely error] ${err?.stack ?? err}`);
       output.show(true);
@@ -121,7 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
           languageId: undefined,
         });
         lastReport = selReport;
-        ReportPanel.showOrUpdate(context.extensionUri, selReport, title);
+        ReportPanel.showOrUpdate(context.extensionUri, selReport, title, appVersion);
       } catch (err: any) {
         output.appendLine(`[Codely error] ${err?.stack ?? err}`);
         output.show(true);
@@ -205,5 +214,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   ReportPanel.dispose();
-  if (debounceTimer) clearTimeout(debounceTimer);
+  for (const t of debounceTimers.values()) clearTimeout(t);
+  debounceTimers.clear();
 }
