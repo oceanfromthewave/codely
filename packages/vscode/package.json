@@ -87,6 +87,26 @@
         "command": "codely.exportSarifWorkspace",
         "title": "Codely: Export Workspace Diagnostics as SARIF…",
         "category": "Codely"
+      },
+      {
+        "command": "codely.previewRefactor",
+        "title": "Codely: Preview Refactor",
+        "category": "Codely"
+      },
+      {
+        "command": "codely.applyRefactor",
+        "title": "Codely: Apply Refactor",
+        "category": "Codely"
+      },
+      {
+        "command": "codely.ignoreRefactor",
+        "title": "Codely: Ignore Refactor",
+        "category": "Codely"
+      },
+      {
+        "command": "codely.explainRefactor",
+        "title": "Codely: Explain Refactor Why",
+        "category": "Codely"
       }
     ],
     "menus": {
