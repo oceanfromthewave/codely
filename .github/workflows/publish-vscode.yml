@@ -1,7 +1,7 @@
 # Push to default branch: bump codelyLab patch version, publish to VS Code Marketplace, commit version bump.
 #
-# VSCE_PAT must be an Azure DevOps PAT (NOT a GitHub token) from the same Microsoft account that owns
-# publisher "codelyLab" on the Marketplace. Scopes: "Custom defined" → Marketplace → Manage.
+# Repository secret VSCE_TOKEN: Azure DevOps PAT (NOT a GitHub token) from the same Microsoft account that
+# owns publisher "codelyLab". Scopes: "Custom defined" → Marketplace → Manage. Injected as VSCE_PAT for vsce.
 # https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token
 #
 # Commits use [skip ci] so the version bump push does not re-trigger this workflow.
@@ -49,14 +49,14 @@ jobs:
       - name: Publish to VS Code Marketplace
         working-directory: packages/vscode
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VSCE_PAT: ${{ secrets.VSCE_TOKEN }}
         # Do not pass `--yarn false`: the trailing `false` is parsed as the [version] positional and breaks with "Invalid version false".
         run: |
           set -euo pipefail
           VSCE_PAT="$(printf '%s' "${VSCE_PAT:-}" | tr -d '\r\n')"
           export VSCE_PAT
           if [ -z "$VSCE_PAT" ]; then
-            echo "::error::Secret VSCE_PAT is empty. Use an Azure DevOps PAT with Marketplace → Manage, from the Microsoft account that owns publisher codelyLab."
+            echo "::error::Repository secret VSCE_TOKEN is empty. Add an Azure DevOps PAT (Marketplace → Manage) for the Microsoft account that owns publisher codelyLab."
             exit 1
           fi
           npx vsce publish --no-dependencies --no-yarn
