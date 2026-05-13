@@ -82,6 +82,11 @@
         "command": "codely.analyzeGitChanges",
         "title": "Codely: Analyze Git Changes vs Ref…",
         "category": "Codely"
+      },
+      {
+        "command": "codely.exportSarifWorkspace",
+        "title": "Codely: Export Workspace Diagnostics as SARIF…",
+        "category": "Codely"
       }
     ],
     "menus": {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isFileWideSuppressed, suppressedLinesForDiagnostics } from '@codely/core';
+import { collectCodelyIssues, type CodelyIssue } from '@codely/core';
 import { getAnalysis, isSupported } from './cache';
 import { codelyContextForDocument } from './workspaceContext';
 
@@ -11,6 +11,25 @@ export function getCollection() {
 
 export function clear(uri: vscode.Uri) {
   collection.delete(uri);
+}
+
+function vscodeSeverity(s: CodelyIssue['vscodeSeverity']): vscode.DiagnosticSeverity {
+  switch (s) {
+    case 'warning':
+      return vscode.DiagnosticSeverity.Warning;
+    case 'information':
+      return vscode.DiagnosticSeverity.Information;
+    default:
+      return vscode.DiagnosticSeverity.Hint;
+  }
+}
+
+function issueToRange(document: vscode.TextDocument, issue: CodelyIssue): vscode.Range {
+  const sl = Math.min(Math.max(0, issue.startLine - 1), document.lineCount - 1);
+  const el = Math.min(Math.max(0, issue.endLine - 1), document.lineCount - 1);
+  const sc = Math.max(0, issue.startColumn - 1);
+  const ec = Math.max(sc, issue.endColumn - 1);
+  return new vscode.Range(sl, sc, el, ec);
 }
 
 export function refreshDiagnostics(document: vscode.TextDocument) {
@@ -31,143 +50,14 @@ export function refreshDiagnostics(document: vscode.TextDocument) {
   }
 
   const text = document.getText();
-  if (isFileWideSuppressed(text)) {
-    collection.set(document.uri, []);
-    return;
-  }
-  const suppressedLines = suppressedLinesForDiagnostics(text);
-
   const { metrics } = getAnalysis(document);
-  const diags: vscode.Diagnostic[] = [];
-
-  const t = resolved.thresholds;
-
-  const rangeForLine = (lineNo: number): vscode.Range => {
-    const safe = Math.min(Math.max(0, lineNo), document.lineCount - 1);
-    const line = document.lineAt(safe);
-    return new vscode.Range(safe, line.firstNonWhitespaceCharacterIndex, safe, line.text.length);
-  };
-
-  const pushDiag = (line1Based: number, range: vscode.Range, message: string, severity: vscode.DiagnosticSeverity) => {
-    if (suppressedLines.has(line1Based)) return;
-    diags.push(diag(range, message, severity));
-  };
-
-  for (const fn of metrics.functions) {
-    if (fn.startLine <= 0) continue;
-    const range = rangeForLine(fn.startLine - 1);
-    const label = fn.ownerClass ? `${fn.ownerClass}.${fn.name}` : fn.name;
-    const line1 = fn.startLine;
-
-    if (fn.cyclomatic >= t.cyclomatic + 5) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has very high cyclomatic complexity (${fn.cyclomatic}). Too many branches in one function.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-    } else if (fn.cyclomatic >= t.cyclomatic) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has high cyclomatic complexity (${fn.cyclomatic}). Consider splitting.`,
-        vscode.DiagnosticSeverity.Information,
-      );
-    }
-
-    if (fn.maxDepth >= t.maxDepth + 1) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} is nested ${fn.maxDepth} levels deep. Use early returns / guard clauses to flatten.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-    } else if (fn.maxDepth >= t.maxDepth) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} reaches nesting depth ${fn.maxDepth}.`,
-        vscode.DiagnosticSeverity.Information,
-      );
-    }
-
-    if (fn.loopNesting >= 2) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has nested loops (depth ${fn.loopNesting}) → potential O(n^${fn.loopNesting}) hotspot if both bounds scale with input.`,
-        vscode.DiagnosticSeverity.Information,
-      );
-    }
-
-    if (fn.ternaryDepth >= 4) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has nested ternaries depth ${fn.ternaryDepth}. Convert to if/else; \`?:\` chains hide control flow.`,
-        vscode.DiagnosticSeverity.Warning,
-      );
-    } else if (fn.ternaryDepth >= 3) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has nested ternaries depth ${fn.ternaryDepth}.`,
-        vscode.DiagnosticSeverity.Information,
-      );
-    }
-
-    if (fn.bitwiseOps >= 8) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has ${fn.bitwiseOps} bitwise operations. If intentional, document the trick; otherwise replace with named arithmetic.`,
-        vscode.DiagnosticSeverity.Information,
-      );
-    } else if (fn.bitwiseOps >= 5) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has ${fn.bitwiseOps} bitwise operations. Consider naming intermediate values.`,
-        vscode.DiagnosticSeverity.Hint,
-      );
-    }
-
-    const longFn = Math.max(60, t.functionLength + 20);
-    if (fn.lengthLines > longFn) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} is ${fn.lengthLines} lines. Likely doing more than one thing.`,
-        vscode.DiagnosticSeverity.Hint,
-      );
-    }
-
-    if (fn.sideEffects.length >= 3) {
-      pushDiag(
-        line1,
-        range,
-        `Codely: ${label} has ${fn.sideEffects.length} side effects (${fn.sideEffects.slice(0, 3).join(', ')}). Hard to test in isolation.`,
-        vscode.DiagnosticSeverity.Hint,
-      );
-    }
-  }
-
-  if (metrics.globalAssignments.length > 0 && !suppressedLines.has(1)) {
-    const r = new vscode.Range(0, 0, 0, 0);
-    diags.push(
-      diag(
-        r,
-        `Codely: top-level mutations detected (${metrics.globalAssignments.slice(0, 4).join(', ')}). Globals reduce locality of reasoning.`,
-        vscode.DiagnosticSeverity.Hint,
-      ),
-    );
-  }
+  const issues = collectCodelyIssues(metrics, resolved.thresholds, text);
+  const diags: vscode.Diagnostic[] = issues.map((issue) => {
+    const d = new vscode.Diagnostic(issueToRange(document, issue), issue.message, vscodeSeverity(issue.vscodeSeverity));
+    d.source = 'codely';
+    d.code = issue.ruleId;
+    return d;
+  });
 
   collection.set(document.uri, diags);
-}
-
-function diag(range: vscode.Range, message: string, severity: vscode.DiagnosticSeverity): vscode.Diagnostic {
-  const d = new vscode.Diagnostic(range, message, severity);
-  d.source = 'codely';
-  return d;
 }

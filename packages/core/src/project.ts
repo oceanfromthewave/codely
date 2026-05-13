@@ -172,6 +172,18 @@ function getAllFiles(dir: string, fileList: string[], ignoreDirs: Set<string>): 
   return fileList;
 }
 
+/** Absolute paths to supported source files (same rules as `analyzeProject`). */
+export function listProjectSourceFiles(dirPath: string, options?: AnalyzeProjectOptions): string[] {
+  const config = loadConfig(dirPath);
+  const ignoreDirs = new Set(config.exclude || ['node_modules', 'dist', 'build', '.git']);
+  let files = getAllFiles(dirPath, [], ignoreDirs);
+  if (options?.onlyRelativePaths && options.onlyRelativePaths.size > 0) {
+    const want = options.onlyRelativePaths;
+    files = files.filter((f) => want.has(path.relative(dirPath, f).split(path.sep).join('/')));
+  }
+  return files;
+}
+
 function loadHistory(rootPath: string): ProjectHistory {
   const historyPath = path.join(rootPath, '.codely', 'history.json');
   if (fs.existsSync(historyPath)) {

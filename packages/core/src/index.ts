@@ -9,8 +9,14 @@ export { loadConfig, resolveFileSettings } from './config';
 export type { ResolvedFileSettings } from './config';
 export { suppressedLinesForDiagnostics, isFileWideSuppressed } from './suppress';
 export { listGitChangedFiles, listGitChangedAbsoluteFiles } from './gitChanged';
-export { analyzeProject } from './project';
+export { analyzeProject, listProjectSourceFiles } from './project';
 export type { AnalyzeProjectOptions, ProjectSummary, ProjectHotspot } from './project';
+export { collectCodelyIssues } from './diagnosticIssues';
+export type { CodelyIssue } from './diagnosticIssues';
+export { buildSarif21Log } from './sarif';
+export type { SarifFileInput } from './sarif';
+export { collectProjectCodelyIssues, collectFileCodelyIssues } from './projectIssues';
+export type { ProjectFileIssues } from './projectIssues';
 export type {
   AnalyzeOptions,
   AnalysisMode,

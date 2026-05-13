@@ -7,6 +7,7 @@ import { refreshDiagnostics, getCollection, clear as clearDiag } from './diagnos
 import { setupStatusBar } from './statusbar';
 import { registerCodelyCodeActions } from './codeActions';
 import { codelyContextForDocument } from './workspaceContext';
+import { registerExportSarif } from './sarifExport';
 
 let lastReport: CodelyReport | undefined;
 /** Per-document debounce so switching files does not cancel another file's pending refresh. */
@@ -58,6 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
   ];
   context.subscriptions.push(vscode.languages.registerCodeLensProvider(selector, codelens));
   context.subscriptions.push(registerCodelyCodeActions(context));
+  context.subscriptions.push(registerExportSarif(context, appVersion));
 
   const refreshStatus = setupStatusBar(context);
 

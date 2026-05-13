@@ -12,8 +12,8 @@
 - 📉 **Complexity metrics** – Cyclomatic complexity, nesting depth, readability / maintainability-style scores.
 - 🧠 **Code fatigue scoring** – Surfaces hotspots that are hard to reason about.
 - 🛠️ **Refactoring hints** – Suggestions driven by metrics (not auto-fixes unless you opt in on the CLI).
-- ⚡ **VS Code integration** – Problems diagnostics, CodeLens, status bar, Quick Fixes to add suppression comments, and a command to summarize **git-changed files** vs a ref.
-- 💻 **CLI** – Project-wide summaries, HTML/JSON export, and **`--git-base`** to analyze only files changed vs a branch.
+- ⚡ **VS Code integration** – Problems diagnostics, CodeLens, status bar, Quick Fixes to add suppression comments, **Export workspace as SARIF** (GitHub Code Scanning–compatible), and a command to summarize **git-changed files** vs a ref.
+- 💻 **CLI** – Project-wide summaries, HTML/JSON export, **`--sarif`** for SARIF 2.1.0, and **`--git-base`** to analyze only files changed vs a branch.
 - 🔕 **Noise control** – `// codely-disable-next-line`, `// codely-disable-line`, `// codely-disable-file`, plus **`.codelyrc` path overrides** (globs) for tests or generated code.
 - 🧪 **Quality tooling** – Vitest smoke tests, ESLint + Prettier, and a GitHub Actions workflow that runs build, test, lint, format check, and a maintainability gate.
 
@@ -71,14 +71,21 @@ node packages/core/dist/cli.js src/app.ts --html report.html
 
 # Optional magic-number fix (interactive) on a single file
 node packages/core/dist/cli.js src/app.ts --fix
+
+# SARIF 2.1.0 (e.g. for github/codeql-action/upload-sarif or other viewers)
+node packages/core/dist/cli.js . --sarif codely.sarif
+node packages/core/dist/cli.js . --git-base main --sarif pr.sarif
+node packages/core/dist/cli.js src/app.ts --sarif file.sarif
 ```
+
+SARIF results mirror the same rules as the VS Code Problems panel (thresholds from `.codelyrc`, inline `codely-disable-*` comments, and `pathOverrides` that turn diagnostics off for a path).
 
 ---
 
 ## 🏗️ Project structure
 
-- `packages/core` – Engine (`@codely/core`): parsing, metrics, CLI, git-change listing, suppression helpers.
-- `packages/vscode` – Extension (`codelyLab`): diagnostics, CodeLens, webview, Quick Fixes, git-summary command.
+- `packages/core` – Engine (`@codely/core`): parsing, metrics, CLI, SARIF, git-change listing, suppression helpers.
+- `packages/vscode` – Extension (`codelyLab`): diagnostics, CodeLens, webview, Quick Fixes, SARIF export, git-summary command.
 - `scripts/` – Helper scripts (e.g. CI maintainability check).
 
 ---
@@ -94,7 +101,7 @@ node packages/core/dist/cli.js src/app.ts --fix
 | `analyzeWhileTyping` | Default `true`. Set `false` to refresh on save / open / tab switch only (lighter while editing).       |
 | `gitCompareRef`      | Default `main`. Used by **Codely: Analyze Git Changes vs Ref…** with `git diff` / `git diff --cached`. |
 
-**Commands:** Analyze current file, selection, show last report JSON, and **Analyze Git Changes** (workspace folder must be a git repo).
+**Commands:** Analyze current file, selection, show last report JSON, **Export Workspace Diagnostics as SARIF…**, and **Analyze Git Changes** (workspace folder must be a git repo).
 
 **Quick Fix:** On a Codely diagnostic, choose _Insert `// codely-disable-next-line` above_ or _Insert `// codely-disable-file` at top_.
 
@@ -160,8 +167,8 @@ Codely는 JavaScript/TypeScript 등을 분석해 **복잡도, 중첩, 피로도,
 - 📉 **복잡도·가독성 지표** – 순환 복잡도, 중첩 깊이 등.
 - 🧠 **코드 피로도** – 이해하기 어려운 구간을 점수화.
 - 🛠️ **리팩터 힌트** – 메트릭 기반 제안 (CLI `--fix`는 선택 사항).
-- ⚡ **VS Code** – Problems, CodeLens, 상태 표시줄, 진단용 **Quick Fix**(억제 주석 삽입), **Git 변경 파일 요약** 명령.
-- 💻 **CLI** – 프로젝트 요약, HTML/JSON, **`--git-base`**로 특정 ref 대비 변경 파일만 분석.
+- ⚡ **VS Code** – Problems, CodeLens, 상태 표시줄, 진단용 **Quick Fix**(억제 주석 삽입), **워크스페이스 SARIF보내기**(Code Scanning 호환), **Git 변경 파일 요약** 명령.
+- 💻 **CLI** – 프로젝트 요약, HTML/JSON, **`--sarif`**(SARIF 2.1.0), **`--git-base`**로 특정 ref 대비 변경 파일만 분석.
 - 🔕 **소음 줄이기** – 소스 내 억제 주석, **`.codelyrc`의 `pathOverrides`**(glob).
 - 🧪 **개발 품질** – Vitest, ESLint, Prettier, GitHub Actions.
 
@@ -207,7 +214,11 @@ node packages/core/dist/cli.js path/to/file.ts
 node packages/core/dist/cli.js .
 node packages/core/dist/cli.js . --git-base main --json
 node packages/core/dist/cli.js src/app.ts --html report.html
+node packages/core/dist/cli.js . --sarif codely.sarif
+node packages/core/dist/cli.js . --git-base main --sarif pr.sarif
 ```
+
+SARIF는 VS Code Problems와 동일 규칙(`.codelyrc` 임계값, `codely-disable-*`, `pathOverrides`)을 반영합니다.
 
 ---
 
@@ -230,7 +241,7 @@ node packages/core/dist/cli.js src/app.ts --html report.html
 | `analyzeWhileTyping` | 기본 `true`. `false`면 저장·열기·탭 전환 시에만 갱신 |
 | `gitCompareRef`      | 기본 `main`. Git 변경 분석 명령에 사용               |
 
-**명령:** 현재 파일 분석, 선택 영역 분석, 마지막 리포트 JSON, **Git 변경 분석**(워크스페이스가 git 저장소여야 함).
+**명령:** 현재 파일 분석, 선택 영역 분석, 마지막 리포트 JSON, **워크스페이스 SARIF보내기**, **Git 변경 분석**(워크스페이스가 git 저장소여야 함).
 
 **Quick Fix:** `// codely-disable-next-line` 또는 파일 상단 `// codely-disable-file` 삽입.
 

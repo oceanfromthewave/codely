@@ -8,11 +8,14 @@ import { listGitChangedFiles } from './gitChanged';
 import { generateHtmlReport } from './translate';
 import { loadConfig } from './config';
 import { fixMagicNumbers } from './fixer';
+import { buildSarif21Log } from './sarif';
+import { collectProjectCodelyIssues, collectFileCodelyIssues } from './projectIssues';
 
 function usage() {
   console.error(
-    'Usage: codely <file_or_directory> [--json] [--html <out.html>] [--fix] [--git-base <ref>]\n' +
-      '  --git-base <ref>  (directory only) Restrict analysis to files changed vs <ref> (git working tree + staged).',
+    'Usage: codely <file_or_directory> [--json] [--html <out.html>] [--sarif <out.sarif>] [--fix] [--git-base <ref>]\n' +
+      '  --git-base <ref>  (directory only) Restrict analysis to files changed vs <ref> (git working tree + staged).\n' +
+      '  --sarif <file>    Write SARIF 2.1.0 (GitHub Code Scanning compatible) for Codely diagnostics.',
   );
   process.exit(2);
 }
@@ -100,6 +103,9 @@ async function main() {
   const wantsFix = args.includes('--fix');
   const htmlIdx = args.indexOf('--html');
   const htmlPath = htmlIdx >= 0 ? args[htmlIdx + 1] : undefined;
+  const sarifIdx = args.indexOf('--sarif');
+  const sarifPath = sarifIdx >= 0 ? args[sarifIdx + 1] : undefined;
+  if (sarifIdx >= 0 && (!sarifPath || sarifPath.startsWith('-'))) usage();
 
   if (!fs.existsSync(inputPath)) {
     console.error(`Path not found: ${inputPath}`);
@@ -108,9 +114,37 @@ async function main() {
 
   const rootDir = fs.statSync(inputPath).isDirectory() ? inputPath : path.dirname(inputPath);
   const config = loadConfig(rootDir);
+  const coreVersion = String(
+    (JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')) as { version?: string }).version ??
+      '0.0.0',
+  );
+  const sarifTool = {
+    name: 'codely',
+    version: coreVersion,
+    informationUri: 'https://github.com/oceanfromthewave/codely',
+  };
 
   const stats = fs.statSync(inputPath);
   if (stats.isDirectory()) {
+    if (sarifPath) {
+      let sarifOpts: { onlyRelativePaths: Set<string> } | undefined;
+      if (gitBase) {
+        const rels = listGitChangedFiles(inputPath, gitBase);
+        if (rels === null) {
+          console.error('Could not list changed files (git error or not a repository).');
+          process.exit(1);
+        }
+        sarifOpts = { onlyRelativePaths: new Set(rels) };
+      }
+      const fileIssues = collectProjectCodelyIssues(inputPath, sarifOpts);
+      const log = buildSarif21Log(
+        sarifTool,
+        fileIssues.map((f) => ({ absolutePath: f.absolutePath, issues: f.issues })),
+      );
+      fs.writeFileSync(sarifPath, JSON.stringify(log, null, 2) + '\n');
+      console.log(`SARIF written to ${sarifPath}`);
+    }
+
     let summary: ProjectSummary;
     if (gitBase) {
       const rels = listGitChangedFiles(inputPath, gitBase);
@@ -154,6 +188,14 @@ async function main() {
     languageId,
     config,
   });
+
+  if (sarifPath) {
+    const fi = collectFileCodelyIssues(abs);
+    const inputs = fi ? [{ absolutePath: fi.absolutePath, issues: fi.issues }] : [];
+    fs.writeFileSync(sarifPath, JSON.stringify(buildSarif21Log(sarifTool, inputs), null, 2) + '\n');
+    console.log(`SARIF written to ${sarifPath}`);
+    if (!htmlPath && !wantsJson) return;
+  }
 
   if (htmlPath) {
     const html = generateHtmlReport(report, filename);
