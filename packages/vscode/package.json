@@ -168,7 +168,7 @@
             "en",
             "ko"
           ],
-          "default": "en",
+          "default": "ko",
           "description": "Preferred language for Codely reports and suggestions."
         }
       }
